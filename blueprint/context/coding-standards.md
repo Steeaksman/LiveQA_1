@@ -48,11 +48,10 @@
 
 ## Styling
 
-> TODO: no CSS framework is installed yet (no Tailwind, no UI kit detected).
-> Pick one and update this section before or during the first UI-heavy feature.
-
+- UI kit: [Nuxt UI](https://ui.nuxt.com) (`@nuxt/ui` module, registered in
+  `nuxt.config.ts`) - prefer its components over hand-rolled markup
 - No inline styles
-- Scope component styles with `<style scoped>` unless a global design system is added
+- Scope component styles with `<style scoped>` for anything Nuxt UI doesn't cover
 
 ## Database
 

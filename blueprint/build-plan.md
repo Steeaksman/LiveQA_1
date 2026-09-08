@@ -68,5 +68,78 @@ If your first pass is just rough bullets, that is okay. Run `/overview` after
 filling both planning docs; it will flag plan-shape problems and can propose a
 cleaned-up checkbox version before generating the project overview.
 
-- [ ] 1. **Feature one** - description
-- [ ] 2. **Feature two** - description
+## MVP
+
+**Foundation**
+
+- [ ] 1. **Supabase project & schema** - migrations for all core tables, enums, indexes, and RLS policies so a fresh Supabase project is reproducible from the repo
+- [ ] 2. **Administrator authentication** - Supabase Auth login and system-wide admin access
+- [ ] 3. **Event Manager accounts & permissions** - global vs. restricted (assigned-events-only) access, enforced in UI, server logic, and RLS
+
+**Event administration**
+
+- [ ] 4. **Event creation wizard** - step-by-step flow (details, attendee setup, attendee types, question settings, moderation, voting, replies, branding, access/security, attachments, privacy, notifications, retention, review & publish) producing a draft event
+- [ ] 5. **Event tabbed management** - edit an existing event's settings after creation
+- [ ] 6. **Audience URL & join code** - unique friendly slug and short join code, both customizable and unique, plus the generic `/join` code-entry page
+- [ ] 7. **QR code generation** - Audience QR and Moderator QR, downloadable as PNG/SVG
+- [ ] 8. **Branded signage export** - QR + logo + event name + join code + instructions graphic for slides/handouts/posters
+- [ ] 9. **Event templates** - save and apply reusable event configuration bundles (no attendee/Q&A data)
+- [ ] 10. **Event duplication** - copy an event's configuration only (never questions, replies, votes, attendees, reports, attachments)
+- [ ] 11. **Event branding** - logo, sponsor logo, accent/background color or image, button styling, welcome text, light/dark mode
+
+**Attendee Q&A**
+
+- [ ] 12. **Attendee join flow & device identity** - opaque per-device token, configurable name/attendee-type requirement, attendee-type dropdown sourced from admin config
+- [ ] 13. **Public Q&A feed** - submit and list questions honoring the event's moderation mode and visibility rules
+- [ ] 14. **Voting** - one upvote per attendee per question, live counts, sort by votes/newest/oldest
+- [ ] 15. **Duplicate-question suggestions** - Postgres trigram/full-text similarity suggestions while typing, with the configurable strictness levels
+- [ ] 16. **Question search** - attendee-facing search over public questions only
+- [ ] 17. **My Questions & attendee edit/delete** - attendee's own submissions view, edit/delete window enforced server-side per event config
+- [ ] 18. **Anonymous questions & attendee-type visibility** - per-event anonymity modes and admin control over whether attendee type is publicly shown
+
+**Moderation**
+
+- [ ] 19. **Moderator authentication** - moderator QR to password entry to secure event-scoped session, with hashed passwords and rate-limited attempts
+- [ ] 20. **Moderator queue & core actions** - approve, reject, hide, archive, mark answered, change visibility, change current topic, open/close submissions and voting
+- [ ] 21. **Bulk moderation & Archive All Unanswered** - multi-select actions plus the confirmed one-click unanswered-archive
+- [ ] 22. **Current speaker/topic tracking** - optional per-event topic setting that new questions inherit; existing questions keep their original topic
+- [ ] 23. **Moderator notifications** - visual (always on) plus opt-in sound/browser notifications
+- [ ] 24. **Attendee content reporting** - report a question/reply (deduped per attendee), surfaced to moderators for review
+
+**Realtime & resilience**
+
+- [ ] 25. **Realtime sync** - attendee, moderator, and admin views update live for questions, votes, visibility, answered/archived state, replies, and current topic, each subscribed only to what it needs
+- [ ] 26. **Presence-based active counts** - approximate active attendee/moderator counts for admin/moderator views
+- [ ] 27. **Reconnect & polling fallback** - auto-reconnect, preserved unsent input, re-fetch on reconnect, duplicate-submission avoidance, connection indicator, and a polling fallback for essential public data
+
+**Advanced features**
+
+- [ ] 28. **Replies/comments** - optional, independently moderated threaded responses to a question, included in reports
+- [ ] 29. **Attachments** - optional image/document uploads via Supabase Storage with configurable type/size/count limits and secure server-side validation
+- [ ] 30. **Abuse protection modes** - Open/Standard/Strict tiers covering rate limiting, blocked-term filtering, browser-token throttling, duplicate protection, temporary bans, and optional CAPTCHA
+
+**Admin oversight & reporting**
+
+- [ ] 31. **Live admin dashboard** - active attendees/moderators, question counts by state, top-voted question, current topic, submission/voting state, updating live
+- [ ] 32. **Administrative audit log** - major admin/Event Manager actions, excluding routine moderator activity
+- [ ] 33. **Question edit history & soft delete** - admin-only wording edits with revision history; soft delete everywhere with restore and confirmed permanent delete
+- [ ] 34. **Event reporting & export** - combined or topic-by-topic report, chosen at generation time, exported as CSV, printable HTML, and branded PDF
+- [ ] 35. **Data export/backup tool** - admin export of event configuration, attendee types, topics, questions, replies, votes, and reports in a structured, restorable format
+
+**Production readiness**
+
+- [ ] 36. **Supabase free-tier usage guardrails** - admin-visible active-count, Realtime, DB, and storage usage signals with Normal/Approaching-Capacity/Consider-Upgrading warnings (never shown to attendees)
+- [ ] 37. **Event Readiness Check** - one-click pre-event diagnostic covering app/Supabase/DB/Realtime/storage reachability, QR and join-code resolution, moderator auth, and event/submission/voting configuration state
+- [ ] 38. **Accessibility pass** - WCAG 2.2 AA across attendee, moderator, and admin surfaces
+- [ ] 39. **Security hardening review** - RLS, IDOR, XSS/CSRF, upload validation, rate limiting, and cross-event isolation checked end to end
+- [ ] 40. **Load testing** - simulate ~100 then ~150-200 concurrent clients with rapid voting/question bursts and document latency, errors, and Realtime behavior
+- [ ] 41. **SiteGround deployment configuration** - GitHub-connected Node.js Project, confirmed build/start settings, environment variables, production subdomain, DNS, and SSL
+
+## Post-MVP (documented, not built now)
+
+Architecture should not preclude these, but none are scheduled features yet:
+
+- Presenter/projector "presentation screen," question board, QR waiting screen
+- Public read-only embedding via iframe
+- Authenticated (permanent-account) attendees
+- Billing, subscription plans, organizations/workspaces, white-label
