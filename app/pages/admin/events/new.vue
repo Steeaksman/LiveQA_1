@@ -8,7 +8,7 @@ interface AttendeeTypeRow {
 
 const supabase = useSupabase()
 
-const step = ref<'details' | 'attendee-types'>('details')
+const step = ref<'details' | 'attendee-types' | 'settings'>('details')
 const eventId = ref<string | null>(null)
 
 const name = ref('')
@@ -117,8 +117,89 @@ async function removeAttendeeType(id: string) {
   attendeeTypes.value = attendeeTypes.value.filter(t => t.id !== id)
 }
 
+const moderationOptions = [
+  { label: 'Immediate publish', value: 'immediate' },
+  { label: 'Approval queue', value: 'queue' }
+]
+
+const questionMaxLength = ref(500)
+const moderationMode = ref<'immediate' | 'queue'>('queue')
+const hideVoteCounts = ref(false)
+const submissionsOpen = ref(false)
+const votingOpen = ref(false)
+const settingsError = ref<string | null>(null)
+const savingSettings = ref(false)
+
+async function goToSettings() {
+  if (eventId.value) {
+    const [settingsResult, eventResult] = await Promise.all([
+      supabase
+        .from('event_settings')
+        .select('question_max_length, moderation_mode, hide_vote_counts')
+        .eq('event_id', eventId.value)
+        .single(),
+      supabase
+        .from('events')
+        .select('submissions_open, voting_open')
+        .eq('id', eventId.value)
+        .single()
+    ])
+
+    if (settingsResult.data) {
+      questionMaxLength.value = settingsResult.data.question_max_length
+      moderationMode.value = settingsResult.data.moderation_mode
+      hideVoteCounts.value = settingsResult.data.hide_vote_counts
+    }
+    if (eventResult.data) {
+      submissionsOpen.value = eventResult.data.submissions_open
+      votingOpen.value = eventResult.data.voting_open
+    }
+  }
+
+  step.value = 'settings'
+}
+
 async function finish() {
-  await navigateTo('/admin/events')
+  settingsError.value = null
+
+  if (!Number.isInteger(questionMaxLength.value) || questionMaxLength.value <= 0) {
+    settingsError.value = 'Max question length must be a positive whole number.'
+    return
+  }
+
+  if (!eventId.value) return
+  savingSettings.value = true
+
+  try {
+    const [settingsResult, eventResult] = await Promise.all([
+      supabase
+        .from('event_settings')
+        .update({
+          question_max_length: questionMaxLength.value,
+          moderation_mode: moderationMode.value,
+          hide_vote_counts: hideVoteCounts.value
+        })
+        .eq('event_id', eventId.value)
+        .select('event_id'),
+      supabase
+        .from('events')
+        .update({
+          submissions_open: submissionsOpen.value,
+          voting_open: votingOpen.value
+        })
+        .eq('id', eventId.value)
+        .select('id')
+    ])
+
+    if (settingsResult.error || eventResult.error || !settingsResult.data?.length || !eventResult.data?.length) {
+      settingsError.value = 'Something went wrong. Please try again.'
+      return
+    }
+
+    await navigateTo('/admin/events')
+  } finally {
+    savingSettings.value = false
+  }
 }
 </script>
 
@@ -138,7 +219,7 @@ async function finish() {
       </UForm>
     </UCard>
 
-    <UCard v-else>
+    <UCard v-else-if="step === 'attendee-types'">
       <h2 class="mb-3 font-medium">
         Attendee types
       </h2>
@@ -156,7 +237,35 @@ async function finish() {
           No attendee types added - optional.
         </p>
       </div>
-      <UButton label="Done" @click="finish" />
+      <UButton label="Next" @click="goToSettings" />
+    </UCard>
+
+    <UCard v-else>
+      <h2 class="mb-3 font-medium">
+        Q&amp;A &amp; moderation settings
+      </h2>
+      <div class="flex flex-col gap-3">
+        <UFormField label="Max question length">
+          <UInput v-model.number="questionMaxLength" type="number" />
+        </UFormField>
+        <UFormField label="Moderation mode">
+          <USelect v-model="moderationMode" :items="moderationOptions" value-key="value" />
+        </UFormField>
+        <div class="flex items-center justify-between">
+          <span>Hide vote counts</span>
+          <USwitch v-model="hideVoteCounts" />
+        </div>
+        <div class="flex items-center justify-between">
+          <span>Submissions open</span>
+          <USwitch v-model="submissionsOpen" />
+        </div>
+        <div class="flex items-center justify-between">
+          <span>Voting open</span>
+          <USwitch v-model="votingOpen" />
+        </div>
+        <UAlert v-if="settingsError" color="error" variant="subtle" :title="settingsError" />
+        <UButton :loading="savingSettings" label="Done" class="self-start" @click="finish" />
+      </div>
     </UCard>
   </div>
 </template>
