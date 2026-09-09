@@ -40,7 +40,7 @@ if (createError) {
 
 const { error: profileError } = await supabase
   .from('profiles')
-  .insert({ id: created.user.id, role: 'administrator' })
+  .insert({ id: created.user.id, role: 'administrator', email })
 
 if (profileError) {
   console.error(`Auth user created, but failed to create the profile: ${profileError.message}`)

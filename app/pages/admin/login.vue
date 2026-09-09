@@ -4,8 +4,8 @@ const errorMessage = ref<string | null>(null)
 const loading = ref(false)
 
 onMounted(async () => {
-  const session = await getAdministratorSession(supabase)
-  if (session) await navigateTo('/admin')
+  const profile = await getAuthenticatedProfile(supabase)
+  if (profile) await navigateTo('/admin')
 })
 
 const fields = [
@@ -25,8 +25,8 @@ async function onSubmit(payload: { data: { email: string, password: string } }) 
       return
     }
 
-    const session = await getAdministratorSession(supabase)
-    if (!session) {
+    const profile = await getAuthenticatedProfile(supabase)
+    if (!profile) {
       errorMessage.value = 'Invalid email or password.'
       return
     }
@@ -43,7 +43,7 @@ async function onSubmit(payload: { data: { email: string, password: string } }) 
 <template>
   <div class="flex min-h-screen items-center justify-center">
     <UAuthForm
-      title="Administrator login"
+      title="Sign in"
       :fields="fields"
       :loading="loading"
       :submit="{ label: 'Log in' }"

@@ -74,7 +74,7 @@ cleaned-up checkbox version before generating the project overview.
 
 - [x] 1. **Supabase project & schema** - migrations for all core tables, enums, indexes, and RLS policies so a fresh Supabase project is reproducible from the repo
 - [x] 2. **Administrator authentication** - Supabase Auth login and system-wide admin access
-- [ ] 3. **Event Manager accounts & permissions** - global vs. restricted (assigned-events-only) access, enforced in UI, server logic, and RLS
+- [x] 3. **Event Manager accounts & permissions** - global vs. restricted (assigned-events-only) access, enforced in UI, server logic, and RLS
 
 **Event administration**
 

@@ -2,7 +2,7 @@ export default defineNuxtRouteMiddleware(async (to) => {
   if (to.path === '/admin/login') return
 
   const supabase = useSupabase()
-  const session = await getAdministratorSession(supabase)
+  const profile = await getAuthenticatedProfile(supabase)
 
-  if (!session) return navigateTo('/admin/login')
+  if (!profile) return navigateTo('/admin/login')
 })
