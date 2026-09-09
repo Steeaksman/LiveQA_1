@@ -8,8 +8,10 @@ interface AttendeeTypeRow {
 
 const supabase = useSupabase()
 
-const step = ref<'details' | 'attendee-types' | 'settings'>('details')
+const step = ref<'details' | 'attendee-types' | 'settings' | 'review'>('details')
 const eventId = ref<string | null>(null)
+const eventSlug = ref('')
+const eventJoinCode = ref('')
 
 const name = ref('')
 const creating = ref(false)
@@ -49,7 +51,7 @@ async function createEvent() {
           join_code: generateJoinCode(),
           created_by: user.id
         })
-        .select('id')
+        .select('id, slug, join_code')
         .single()
 
       if (!error && data) {
@@ -63,6 +65,8 @@ async function createEvent() {
         }
 
         eventId.value = data.id
+        eventSlug.value = data.slug
+        eventJoinCode.value = data.join_code
         step.value = 'attendee-types'
         return
       }
@@ -196,9 +200,43 @@ async function finish() {
       return
     }
 
-    await navigateTo('/admin/events')
+    step.value = 'review'
   } finally {
     savingSettings.value = false
+  }
+}
+
+const moderationModeLabel = computed(() =>
+  moderationOptions.find(o => o.value === moderationMode.value)?.label ?? moderationMode.value
+)
+
+const publishError = ref<string | null>(null)
+const publishing = ref(false)
+
+async function saveAsDraft() {
+  await navigateTo('/admin/events')
+}
+
+async function publish() {
+  if (!eventId.value) return
+  publishError.value = null
+  publishing.value = true
+
+  try {
+    const { error, data } = await supabase
+      .from('events')
+      .update({ status: 'live' })
+      .eq('id', eventId.value)
+      .select('id')
+
+    if (error || !data?.length) {
+      publishError.value = 'Something went wrong. Please try again.'
+      return
+    }
+
+    await navigateTo('/admin/events')
+  } finally {
+    publishing.value = false
   }
 }
 </script>
@@ -240,7 +278,7 @@ async function finish() {
       <UButton label="Next" @click="goToSettings" />
     </UCard>
 
-    <UCard v-else>
+    <UCard v-else-if="step === 'settings'">
       <h2 class="mb-3 font-medium">
         Q&amp;A &amp; moderation settings
       </h2>
@@ -264,7 +302,32 @@ async function finish() {
           <USwitch v-model="votingOpen" />
         </div>
         <UAlert v-if="settingsError" color="error" variant="subtle" :title="settingsError" />
-        <UButton :loading="savingSettings" label="Done" class="self-start" @click="finish" />
+        <UButton :loading="savingSettings" label="Next" class="self-start" @click="finish" />
+      </div>
+    </UCard>
+
+    <UCard v-else>
+      <h2 class="mb-3 font-medium">
+        Review &amp; publish
+      </h2>
+      <dl class="mb-4 flex flex-col gap-2 text-sm">
+        <div class="flex justify-between"><dt>Name</dt><dd>{{ name }}</dd></div>
+        <div class="flex justify-between"><dt>Slug</dt><dd>{{ eventSlug }}</dd></div>
+        <div class="flex justify-between"><dt>Join code</dt><dd>{{ eventJoinCode }}</dd></div>
+        <div class="flex justify-between">
+          <dt>Attendee types</dt>
+          <dd>{{ attendeeTypes.length ? attendeeTypes.map(t => t.label).join(', ') : 'None' }}</dd>
+        </div>
+        <div class="flex justify-between"><dt>Max question length</dt><dd>{{ questionMaxLength }}</dd></div>
+        <div class="flex justify-between"><dt>Moderation mode</dt><dd>{{ moderationModeLabel }}</dd></div>
+        <div class="flex justify-between"><dt>Hide vote counts</dt><dd>{{ hideVoteCounts ? 'Yes' : 'No' }}</dd></div>
+        <div class="flex justify-between"><dt>Submissions open</dt><dd>{{ submissionsOpen ? 'Yes' : 'No' }}</dd></div>
+        <div class="flex justify-between"><dt>Voting open</dt><dd>{{ votingOpen ? 'Yes' : 'No' }}</dd></div>
+      </dl>
+      <UAlert v-if="publishError" color="error" variant="subtle" :title="publishError" class="mb-3" />
+      <div class="flex gap-2">
+        <UButton color="neutral" variant="subtle" label="Save as draft" @click="saveAsDraft" />
+        <UButton :loading="publishing" label="Publish" @click="publish" />
       </div>
     </UCard>
   </div>
