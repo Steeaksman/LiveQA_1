@@ -230,6 +230,13 @@ For a Nuxt 4 + Vue 3 + TypeScript project, using npm.
 - Build: `npm run build`
 - Preview production build: `npm run preview`
 - Generate (static): `npm run generate`
+- RLS smoke check: `node scripts/check-rls.mjs` (requires `.env` populated
+  from `.env.example`)
+
+Copy `.env.example` to `.env` and fill in `NUXT_PUBLIC_SUPABASE_URL`,
+`NUXT_PUBLIC_SUPABASE_ANON_KEY`, and `NUXT_SUPABASE_SERVICE_ROLE_KEY` from the
+Supabase project dashboard (Project Settings > API). The service-role key is
+server-only and must never be committed or exposed to the client.
 
 No lint command is configured yet. No test runner is configured yet. If this project does not already have a unit test runner, run
 `/tests` or `$tests` to add one and update this section with the real test
