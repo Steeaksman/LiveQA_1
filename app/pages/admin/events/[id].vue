@@ -19,6 +19,8 @@ const slug = ref('')
 const joinCode = ref('')
 const status = ref('')
 const detailsError = ref<string | null>(null)
+const slugError = ref<string | null>(null)
+const joinCodeError = ref<string | null>(null)
 const savingDetails = ref(false)
 
 const newLabel = ref('')
@@ -92,9 +94,23 @@ onMounted(async () => {
 
 async function saveDetails() {
   detailsError.value = null
+  slugError.value = null
+  joinCodeError.value = null
 
   if (!name.value.trim()) {
     detailsError.value = 'Name is required.'
+    return
+  }
+
+  const normalizedSlug = normalizeSlug(slug.value)
+  if (!isValidSlug(normalizedSlug)) {
+    slugError.value = 'Slug must be 1-63 characters: lowercase letters, numbers, and hyphens only, no leading or trailing hyphen.'
+    return
+  }
+
+  const normalizedJoinCode = normalizeJoinCode(joinCode.value)
+  if (!isValidJoinCode(normalizedJoinCode)) {
+    joinCodeError.value = 'Join code must be exactly 6 letters and/or numbers.'
     return
   }
 
@@ -103,13 +119,24 @@ async function saveDetails() {
   try {
     const { error, data } = await supabase
       .from('events')
-      .update({ name: name.value.trim() })
+      .update({ name: name.value.trim(), slug: normalizedSlug, join_code: normalizedJoinCode })
       .eq('id', eventId)
       .select('id')
 
-    if (error || !data?.length) {
-      detailsError.value = 'Something went wrong. Please try again.'
+    if (error) {
+      detailsError.value = error.code === '23505'
+        ? 'That slug or join code is already in use. Please choose different values.'
+        : 'Something went wrong. Please try again.'
+      return
     }
+
+    if (!data?.length) {
+      detailsError.value = 'Something went wrong. Please try again.'
+      return
+    }
+
+    slug.value = normalizedSlug
+    joinCode.value = normalizedJoinCode
   } finally {
     savingDetails.value = false
   }
@@ -228,12 +255,12 @@ async function saveSettings() {
           <UFormField label="Event name" required>
             <UInput v-model="name" />
           </UFormField>
-          <p class="text-sm text-gray-500">
-            Slug: {{ slug }}
-          </p>
-          <p class="text-sm text-gray-500">
-            Join code: {{ joinCode }}
-          </p>
+          <UFormField label="Slug" :error="slugError ?? undefined">
+            <UInput v-model="slug" />
+          </UFormField>
+          <UFormField label="Join code" :error="joinCodeError ?? undefined">
+            <UInput v-model="joinCode" />
+          </UFormField>
           <p class="text-sm text-gray-500">
             Status: {{ status }}
           </p>
