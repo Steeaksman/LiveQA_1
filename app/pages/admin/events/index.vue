@@ -1,5 +1,5 @@
 <script setup lang="ts">
-definePageMeta({ middleware: ['admin', 'administrator-only'] })
+definePageMeta({ middleware: 'admin' })
 
 interface EventRow {
   id: string
@@ -36,14 +36,16 @@ onMounted(async () => {
       No events yet.
     </p>
     <div v-else class="flex flex-col gap-2">
-      <UCard v-for="event in events" :key="event.id">
-        <p class="font-medium">
-          {{ event.name }}
-        </p>
-        <p class="text-sm text-gray-500">
-          {{ event.slug }} - {{ event.status }}
-        </p>
-      </UCard>
+      <NuxtLink v-for="event in events" :key="event.id" :to="`/admin/events/${event.id}`">
+        <UCard>
+          <p class="font-medium">
+            {{ event.name }}
+          </p>
+          <p class="text-sm text-gray-500">
+            {{ event.slug }} - {{ event.status }}
+          </p>
+        </UCard>
+      </NuxtLink>
     </div>
   </div>
 </template>

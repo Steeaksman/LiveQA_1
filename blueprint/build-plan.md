@@ -82,7 +82,7 @@ cleaned-up checkbox version before generating the project overview.
   - [x] 4a. **Wizard shell + core details** - name, auto-generated slug/join-code (Feature 6 later adds customization), attendee types CRUD; produces a real draft event
   - [x] 4b. **Question/moderation/voting settings step** - the toggles Features 13/14/19-21 need soon: max question length, moderation mode, voting on/off, hide vote counts
   - [x] 4c. **Review & publish step** - draft to scheduled/live transition (in practice: draft or live only - see the archived spec for why `scheduled` was excluded)
-- [ ] 5. **Event tabbed management** - edit an existing event's settings after creation
+- [x] 5. **Event tabbed management** - edit an existing event's settings after creation
 - [ ] 6. **Audience URL & join code** - unique friendly slug and short join code, both customizable and unique, plus the generic `/join` code-entry page
 - [ ] 7. **QR code generation** - Audience QR and Moderator QR, downloadable as PNG/SVG
 - [ ] 8. **Branded signage export** - QR + logo + event name + join code + instructions graphic for slides/handouts/posters
