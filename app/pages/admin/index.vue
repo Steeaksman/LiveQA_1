@@ -25,9 +25,17 @@ async function logout() {
 <template>
   <div class="flex min-h-screen flex-col items-center justify-center gap-4">
     <p>Logged in as {{ profile?.email }} ({{ roleLabel }})</p>
-    <NuxtLink v-if="profile?.role === 'administrator'" to="/admin/event-managers">
-      Event Managers
-    </NuxtLink>
+    <template v-if="profile?.role === 'administrator'">
+      <NuxtLink to="/admin/events">
+        Events
+      </NuxtLink>
+      <NuxtLink to="/admin/events/new">
+        Create Event
+      </NuxtLink>
+      <NuxtLink to="/admin/event-managers">
+        Event Managers
+      </NuxtLink>
+    </template>
     <UButton label="Log out" @click="logout" />
   </div>
 </template>
