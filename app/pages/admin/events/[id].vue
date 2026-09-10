@@ -43,6 +43,8 @@ const moderationMode = ref<'immediate' | 'queue'>('queue')
 const hideVoteCounts = ref(false)
 const submissionsOpen = ref(false)
 const votingOpen = ref(false)
+const requireAttendeeName = ref(false)
+const requireAttendeeType = ref(false)
 const settingsError = ref<string | null>(null)
 const savingSettings = ref(false)
 
@@ -86,7 +88,7 @@ onMounted(async () => {
   const [settingsResult, attendeeTypesResult] = await Promise.all([
     supabase
       .from('event_settings')
-      .select('question_max_length, moderation_mode, hide_vote_counts, accent_color, background_color, welcome_text, theme_mode')
+      .select('question_max_length, moderation_mode, hide_vote_counts, accent_color, background_color, welcome_text, theme_mode, require_attendee_name, require_attendee_type')
       .eq('event_id', eventId)
       .single(),
     supabase
@@ -104,6 +106,8 @@ onMounted(async () => {
     backgroundColor.value = settingsResult.data.background_color ?? ''
     welcomeText.value = settingsResult.data.welcome_text ?? ''
     themeMode.value = settingsResult.data.theme_mode
+    requireAttendeeName.value = settingsResult.data.require_attendee_name
+    requireAttendeeType.value = settingsResult.data.require_attendee_type
   }
   submissionsOpen.value = false
   votingOpen.value = false
@@ -309,7 +313,9 @@ async function saveSettings() {
         .update({
           question_max_length: questionMaxLength.value,
           moderation_mode: moderationMode.value,
-          hide_vote_counts: hideVoteCounts.value
+          hide_vote_counts: hideVoteCounts.value,
+          require_attendee_name: requireAttendeeName.value,
+          require_attendee_type: requireAttendeeType.value
         })
         .eq('event_id', eventId)
         .select('event_id'),
@@ -483,6 +489,14 @@ async function saveBranding() {
           <div class="flex items-center justify-between">
             <span>Voting open</span>
             <USwitch v-model="votingOpen" />
+          </div>
+          <div class="flex items-center justify-between">
+            <span>Require attendee name</span>
+            <USwitch v-model="requireAttendeeName" />
+          </div>
+          <div class="flex items-center justify-between">
+            <span>Require attendee type</span>
+            <USwitch v-model="requireAttendeeType" />
           </div>
           <UAlert v-if="settingsError" color="error" variant="subtle" :title="settingsError" />
           <UButton :loading="savingSettings" label="Save" class="self-start" @click="saveSettings" />

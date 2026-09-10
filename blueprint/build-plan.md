@@ -94,7 +94,7 @@ cleaned-up checkbox version before generating the project overview.
 
 **Attendee Q&A**
 
-- [ ] 12. **Attendee join flow & device identity** - opaque per-device token, configurable name/attendee-type requirement, attendee-type dropdown sourced from admin config
+- [x] 12. **Attendee join flow & device identity** - opaque per-device token, configurable name/attendee-type requirement, attendee-type dropdown sourced from admin config
 - [ ] 13. **Public Q&A feed** - submit and list questions honoring the event's moderation mode and visibility rules
 - [ ] 14. **Voting** - one upvote per attendee per question, live counts, sort by votes/newest/oldest
 - [ ] 15. **Duplicate-question suggestions** - Postgres trigram/full-text similarity suggestions while typing, with the configurable strictness levels
