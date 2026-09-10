@@ -17,6 +17,7 @@ interface EventContext {
   moderationMode: 'immediate' | 'queue'
   questionMaxLength: number
   submissionsOpen: boolean
+  votingOpen: boolean
 }
 
 interface EventContextResponse {
@@ -34,6 +35,8 @@ interface JoinResponse {
 interface QuestionRow {
   id: string
   text: string
+  voteCount: number | null
+  hasVoted: boolean
 }
 
 interface QuestionsResponse {
@@ -48,15 +51,35 @@ interface SubmitQuestionResponse {
   error: string | null
 }
 
+interface VoteResponse {
+  success: boolean
+  data: { voted: boolean } | null
+  error: string | null
+}
+
+type SortOption = 'votes' | 'newest' | 'oldest'
+
 const route = useRoute()
 const slug = route.params.slug as string
 
 const { data: response } = await useFetch<EventContextResponse>(`/api/events/${slug}`)
-const { data: questionsResponse, refresh: refreshQuestions } = await useFetch<QuestionsResponse>(`/api/events/${slug}/questions`)
+
+const sort = ref<SortOption>('newest')
+const voteToken = ref<string | undefined>(undefined)
+
+const { data: questionsResponse, refresh: refreshQuestions } = await useFetch<QuestionsResponse>(`/api/events/${slug}/questions`, {
+  query: computed(() => ({ sort: sort.value, token: voteToken.value }))
+})
 
 const context = computed(() => response.value?.data ?? null)
 const notFound = computed(() => !response.value?.success)
 const questions = computed(() => questionsResponse.value?.data?.questions ?? [])
+
+const sortOptions = [
+  { label: 'Most votes', value: 'votes' },
+  { label: 'Newest', value: 'newest' },
+  { label: 'Oldest', value: 'oldest' }
+]
 
 const joined = ref(false)
 const displayName = ref('')
@@ -66,7 +89,9 @@ const joinError = ref<string | null>(null)
 
 onMounted(() => {
   if (context.value) {
-    joined.value = getDeviceIdentity(context.value.id).joined
+    const identity = getDeviceIdentity(context.value.id)
+    joined.value = identity.joined
+    voteToken.value = identity.token
   }
 })
 
@@ -160,6 +185,44 @@ async function submitQuestion() {
     submitting.value = false
   }
 }
+
+const votingQuestionId = ref<string | null>(null)
+const voteError = ref<string | null>(null)
+
+async function upvote(questionId: string) {
+  if (!context.value) return
+  voteError.value = null
+  votingQuestionId.value = questionId
+
+  try {
+    const identity = getDeviceIdentity(context.value.id)
+
+    const result = await $fetch<VoteResponse>('/api/votes', {
+      method: 'POST',
+      body: {
+        eventId: context.value.id,
+        token: identity.token,
+        questionId
+      }
+    })
+
+    if (!result.success) {
+      voteError.value = result.error ?? 'Something went wrong. Please try again.'
+      return
+    }
+
+    const target = questionsResponse.value?.data?.questions.find(q => q.id === questionId)
+    if (target && !target.hasVoted) {
+      target.hasVoted = true
+      if (target.voteCount !== null) target.voteCount += 1
+    }
+  } catch (err) {
+    const data = (err as { data?: VoteResponse })?.data
+    voteError.value = data?.error ?? 'Something went wrong. Please try again.'
+  } finally {
+    votingQuestionId.value = null
+  }
+}
 </script>
 
 <template>
@@ -216,17 +279,38 @@ async function submitQuestion() {
         </div>
       </UCard>
 
-      <div class="mb-3 flex items-center justify-between">
+      <div class="mb-3 flex items-center justify-between gap-2">
         <h2 class="font-medium">
           Questions
         </h2>
-        <UButton size="xs" variant="subtle" label="Refresh" @click="refreshQuestions" />
+        <div class="flex items-center gap-2">
+          <USelect v-model="sort" :items="sortOptions" value-key="value" size="sm" />
+          <UButton size="xs" variant="subtle" label="Refresh" @click="refreshQuestions" />
+        </div>
       </div>
+      <p v-if="!context.votingOpen" class="mb-3 text-sm text-gray-500">
+        Voting is currently closed.
+      </p>
+      <UAlert v-if="voteError" color="error" variant="subtle" :title="voteError" class="mb-3" />
       <div class="flex flex-col gap-2">
         <UCard v-for="question in questions" :key="question.id">
-          <p class="whitespace-pre-wrap">
-            {{ question.text }}
-          </p>
+          <div class="flex items-center justify-between gap-3">
+            <p class="whitespace-pre-wrap">
+              {{ question.text }}
+            </p>
+            <div class="flex shrink-0 items-center gap-2">
+              <span v-if="question.voteCount !== null" class="text-sm text-gray-500">{{ question.voteCount }}</span>
+              <UButton
+                v-if="joined && context.votingOpen"
+                size="xs"
+                :variant="question.hasVoted ? 'subtle' : 'solid'"
+                :disabled="question.hasVoted"
+                :loading="votingQuestionId === question.id"
+                :label="question.hasVoted ? 'Voted' : 'Upvote'"
+                @click="upvote(question.id)"
+              />
+            </div>
+          </div>
         </UCard>
         <p v-if="questions.length === 0" class="text-sm text-gray-500">
           No questions yet - be the first to ask!

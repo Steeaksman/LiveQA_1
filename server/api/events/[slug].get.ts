@@ -10,7 +10,7 @@ export default defineEventHandler(async (event) => {
 
   const { data: found } = await supabase
     .from('events')
-    .select('id, name, status, submissions_open')
+    .select('id, name, status, submissions_open, voting_open')
     .eq('slug', slug)
     .is('deleted_at', null)
     .maybeSingle()
@@ -49,7 +49,8 @@ export default defineEventHandler(async (event) => {
       attendeeTypes: attendeeTypesResult.data ?? [],
       moderationMode: settings?.moderation_mode ?? 'queue',
       questionMaxLength: settings?.question_max_length ?? 500,
-      submissionsOpen: found.submissions_open
+      submissionsOpen: found.submissions_open,
+      votingOpen: found.voting_open
     },
     error: null
   }
