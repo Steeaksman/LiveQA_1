@@ -70,6 +70,32 @@ interface DuplicateQuestionsResponse {
   error: string | null
 }
 
+interface MyQuestionRow {
+  id: string
+  text: string
+  approvalStatus: 'pending' | 'approved' | 'rejected'
+  visibility: 'hidden' | 'public'
+  canModify: boolean
+}
+
+interface MyQuestionsResponse {
+  success: boolean
+  data: { questions: MyQuestionRow[] } | null
+  error: string | null
+}
+
+interface EditQuestionResponse {
+  success: boolean
+  data: { questionId: string } | null
+  error: string | null
+}
+
+interface DeleteQuestionResponse {
+  success: boolean
+  data: { questionId: string } | null
+  error: string | null
+}
+
 type SortOption = 'votes' | 'newest' | 'oldest'
 
 const route = useRoute()
@@ -93,6 +119,12 @@ watch(searchInput, (value) => {
 const { data: questionsResponse, refresh: refreshQuestions } = await useFetch<QuestionsResponse>(`/api/events/${slug}/questions`, {
   query: computed(() => ({ sort: sort.value, token: voteToken.value, search: searchTerm.value || undefined }))
 })
+
+const { data: myQuestionsResponse, refresh: refreshMyQuestions } = await useFetch<MyQuestionsResponse>(`/api/events/${slug}/my-questions`, {
+  query: computed(() => ({ token: voteToken.value }))
+})
+
+const myQuestions = computed(() => myQuestionsResponse.value?.data?.questions ?? [])
 
 const context = computed(() => response.value?.data ?? null)
 const notFound = computed(() => !response.value?.success)
@@ -266,6 +298,94 @@ async function upvote(questionId: string) {
     votingQuestionId.value = null
   }
 }
+
+const editingQuestionId = ref<string | null>(null)
+const editText = ref('')
+const savingEdit = ref(false)
+const editError = ref<string | null>(null)
+const deletingQuestionId = ref<string | null>(null)
+const deleteError = ref<string | null>(null)
+
+function startEdit(question: MyQuestionRow) {
+  editingQuestionId.value = question.id
+  editText.value = question.text
+  editError.value = null
+}
+
+function cancelEdit() {
+  editingQuestionId.value = null
+  editError.value = null
+}
+
+async function saveEdit(questionId: string) {
+  if (!context.value) return
+  editError.value = null
+
+  if (!editText.value.trim()) {
+    editError.value = 'Please enter a question.'
+    return
+  }
+
+  savingEdit.value = true
+
+  try {
+    const identity = getDeviceIdentity(context.value.id)
+
+    const result = await $fetch<EditQuestionResponse>('/api/questions/edit', {
+      method: 'POST',
+      body: {
+        eventId: context.value.id,
+        token: identity.token,
+        questionId,
+        text: editText.value.trim()
+      }
+    })
+
+    if (!result.success) {
+      editError.value = result.error ?? 'Something went wrong. Please try again.'
+      return
+    }
+
+    editingQuestionId.value = null
+    await Promise.all([refreshQuestions(), refreshMyQuestions()])
+  } catch (err) {
+    const data = (err as { data?: EditQuestionResponse })?.data
+    editError.value = data?.error ?? 'Something went wrong. Please try again.'
+  } finally {
+    savingEdit.value = false
+  }
+}
+
+async function deleteQuestion(questionId: string) {
+  if (!context.value) return
+  deleteError.value = null
+  deletingQuestionId.value = questionId
+
+  try {
+    const identity = getDeviceIdentity(context.value.id)
+
+    const result = await $fetch<DeleteQuestionResponse>('/api/questions/delete', {
+      method: 'POST',
+      body: {
+        eventId: context.value.id,
+        token: identity.token,
+        questionId
+      }
+    })
+
+    if (!result.success) {
+      deleteError.value = result.error ?? 'Something went wrong. Please try again.'
+      return
+    }
+
+    await Promise.all([refreshQuestions(), refreshMyQuestions()])
+  } catch (err) {
+    const data = (err as { data?: DeleteQuestionResponse })?.data
+    deleteError.value = data?.error ?? 'Something went wrong. Please try again.'
+  } finally {
+    deletingQuestionId.value = null
+  }
+}
 </script>
 
 <template>
@@ -329,6 +449,49 @@ async function upvote(questionId: string) {
           <UButton :loading="joining" label="Join" class="self-start" @click="join" />
         </div>
       </UCard>
+
+      <div v-if="joined" class="mb-4">
+        <h2 class="mb-3 font-medium">
+          My Questions
+        </h2>
+        <UAlert v-if="editError" color="error" variant="subtle" :title="editError" class="mb-3" />
+        <UAlert v-if="deleteError" color="error" variant="subtle" :title="deleteError" class="mb-3" />
+        <div class="flex flex-col gap-2">
+          <UCard v-for="question in myQuestions" :key="question.id">
+            <div v-if="editingQuestionId === question.id" class="flex flex-col gap-2">
+              <UTextarea v-model="editText" :maxlength="context.questionMaxLength" />
+              <div class="flex gap-2">
+                <UButton size="xs" :loading="savingEdit" label="Save" @click="saveEdit(question.id)" />
+                <UButton size="xs" variant="ghost" label="Cancel" @click="cancelEdit" />
+              </div>
+            </div>
+            <div v-else class="flex items-center justify-between gap-3">
+              <div>
+                <p class="whitespace-pre-wrap">
+                  {{ question.text }}
+                </p>
+                <p class="text-sm text-gray-500">
+                  {{ question.visibility === 'public' ? 'Public' : question.approvalStatus === 'rejected' ? 'Rejected' : 'Pending review' }}
+                </p>
+              </div>
+              <div v-if="question.canModify" class="flex shrink-0 gap-2">
+                <UButton size="xs" variant="subtle" label="Edit" @click="startEdit(question)" />
+                <UButton
+                  size="xs"
+                  color="error"
+                  variant="ghost"
+                  :loading="deletingQuestionId === question.id"
+                  label="Delete"
+                  @click="deleteQuestion(question.id)"
+                />
+              </div>
+            </div>
+          </UCard>
+          <p v-if="myQuestions.length === 0" class="text-sm text-gray-500">
+            You haven't asked anything yet.
+          </p>
+        </div>
+      </div>
 
       <div class="mb-3 flex items-center justify-between gap-2">
         <h2 class="font-medium">

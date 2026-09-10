@@ -1,0 +1,40 @@
+import { defineEventHandler, readBody, setResponseStatus } from 'h3'
+import { useSupabaseServiceRole } from '../../utils/supabase'
+import { findEditableQuestion, EVENT_NOT_FOUND_ERROR } from '../../utils/find-editable-question'
+
+interface DeleteQuestionBody {
+  eventId?: string
+  token?: string
+  questionId?: string
+}
+
+const GENERIC_ERROR = 'Something went wrong. Please try again.'
+
+export default defineEventHandler(async (event) => {
+  const body = await readBody<DeleteQuestionBody>(event)
+  const eventId = body?.eventId ?? ''
+  const token = body?.token ?? ''
+  const questionId = body?.questionId ?? ''
+
+  const result = await findEditableQuestion({ eventId, token, questionId })
+
+  if (!result.ok) {
+    setResponseStatus(event, result.error === EVENT_NOT_FOUND_ERROR ? 404 : 400)
+    return { success: false, data: null, error: result.error }
+  }
+
+  const supabase = useSupabaseServiceRole()
+
+  const { error, data } = await supabase
+    .from('questions')
+    .update({ deleted_at: new Date().toISOString() })
+    .eq('id', result.question.id)
+    .select('id')
+
+  if (error || !data?.length) {
+    setResponseStatus(event, 500)
+    return { success: false, data: null, error: GENERIC_ERROR }
+  }
+
+  return { success: true, data: { questionId: result.question.id }, error: null }
+})
