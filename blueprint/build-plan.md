@@ -115,7 +115,7 @@ cleaned-up checkbox version before generating the project overview.
 
 - [x] 25. **Realtime sync** - attendee, moderator, and admin views update live for questions, votes, visibility, answered/archived state, replies, and current topic, each subscribed only to what it needs
 - [x] 26. **Presence-based active counts** - approximate active attendee/moderator counts for admin/moderator views
-- [ ] 27. **Reconnect & polling fallback** - auto-reconnect, preserved unsent input, re-fetch on reconnect, duplicate-submission avoidance, connection indicator, and a polling fallback for essential public data
+- [x] 27. **Reconnect & polling fallback** - auto-reconnect, preserved unsent input, re-fetch on reconnect, duplicate-submission avoidance, connection indicator, and a polling fallback for essential public data
 
 **Advanced features**
 

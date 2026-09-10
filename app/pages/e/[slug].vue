@@ -152,6 +152,8 @@ const attendeeTypeId = ref<string | null>(null)
 const joining = ref(false)
 const joinError = ref<string | null>(null)
 
+const connectionStatus = ref<'connected' | 'reconnecting'>('reconnecting')
+
 onMounted(() => {
   if (context.value) {
     const identity = getDeviceIdentity(context.value.id)
@@ -165,6 +167,8 @@ onMounted(() => {
 
   const supabase = useSupabase()
   let debounceTimer: ReturnType<typeof setTimeout> | undefined
+  let fallbackPollTimer: ReturnType<typeof setInterval> | undefined
+  let hasConnectedBefore = false
 
   function scheduleRefresh() {
     if (debounceTimer) clearTimeout(debounceTimer)
@@ -173,16 +177,40 @@ onMounted(() => {
     }, 500)
   }
 
+  function startFallbackPoll() {
+    if (fallbackPollTimer) return
+    fallbackPollTimer = setInterval(() => {
+      refreshQuestions()
+    }, 15000)
+  }
+
+  function stopFallbackPoll() {
+    if (fallbackPollTimer) {
+      clearInterval(fallbackPollTimer)
+      fallbackPollTimer = undefined
+    }
+  }
+
   const channel = supabase
     .channel(`event:${context.value.id}:questions`)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'questions', filter: `event_id=eq.${context.value.id}` }, scheduleRefresh)
     .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'votes', filter: `event_id=eq.${context.value.id}` }, scheduleRefresh)
     .subscribe((status) => {
-      if (status === 'SUBSCRIBED') channel.track({ role: 'attendee' })
+      if (status === 'SUBSCRIBED') {
+        connectionStatus.value = 'connected'
+        channel.track({ role: 'attendee' })
+        stopFallbackPoll()
+        if (hasConnectedBefore) refreshQuestions()
+        hasConnectedBefore = true
+      } else if (status === 'CLOSED' || status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+        connectionStatus.value = 'reconnecting'
+        startFallbackPoll()
+      }
     })
 
   onUnmounted(() => {
     if (debounceTimer) clearTimeout(debounceTimer)
+    stopFallbackPoll()
     supabase.removeChannel(channel)
   })
 })
@@ -581,6 +609,9 @@ async function deleteQuestion(questionId: string) {
           <UButton size="xs" variant="subtle" label="Refresh" @click="refreshQuestions" />
         </div>
       </div>
+      <p class="mb-3 text-sm text-gray-500">
+        {{ connectionStatus === 'connected' ? 'Live' : 'Reconnecting...' }}
+      </p>
       <UInput v-model="searchInput" placeholder="Search questions" class="mb-3 w-full" />
       <p v-if="!context.votingOpen" class="mb-3 text-sm text-gray-500">
         Voting is currently closed.

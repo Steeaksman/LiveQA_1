@@ -480,6 +480,7 @@ async function pollQueue() {
 
 const attendeeCount = ref(0)
 const moderatorCount = ref(0)
+const connectionStatus = ref<'connected' | 'reconnecting'>('reconnecting')
 let presenceChannel: RealtimeChannel | undefined
 
 function updatePresenceCounts() {
@@ -501,7 +502,12 @@ watch(authenticated, (value) => {
         .on('presence', { event: 'join' }, updatePresenceCounts)
         .on('presence', { event: 'leave' }, updatePresenceCounts)
         .subscribe((status) => {
-          if (status === 'SUBSCRIBED') presenceChannel?.track({ role: 'moderator' })
+          if (status === 'SUBSCRIBED') {
+            connectionStatus.value = 'connected'
+            presenceChannel?.track({ role: 'moderator' })
+          } else if (status === 'CLOSED' || status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+            connectionStatus.value = 'reconnecting'
+          }
         })
     }
   } else {
@@ -595,6 +601,7 @@ async function login() {
       </h1>
 
       <p class="mb-1 text-sm text-gray-500">
+        {{ connectionStatus === 'connected' ? 'Live' : 'Reconnecting...' }} -
         {{ attendeeCount }} active attendees - {{ moderatorCount }} active moderators
       </p>
 
