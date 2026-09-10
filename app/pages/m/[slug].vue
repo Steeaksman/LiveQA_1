@@ -34,6 +34,7 @@ interface ModerationQuestion {
   answered: boolean
   archived: boolean
   voteCount: number
+  reportCount: number
   displayName: string | null
   attendeeType: string | null
   topicName: string | null
@@ -683,6 +684,7 @@ async function login() {
             <template v-if="q.archived"> - archived</template>
             <template v-if="q.topicName"> - {{ q.topicName }}</template>
             - {{ q.voteCount }} votes
+            <template v-if="q.reportCount > 0"> - {{ q.reportCount }} reports</template>
           </p>
           <UAlert v-if="actionErrors[q.id]" color="error" variant="subtle" :title="actionErrors[q.id]" class="mt-2" />
           <div class="mt-2 flex flex-wrap gap-2">

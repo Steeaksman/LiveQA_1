@@ -39,6 +39,7 @@ interface QuestionRow {
   text: string
   voteCount: number | null
   hasVoted: boolean
+  reported: boolean
   displayName: string | null
   attendeeType: string | null
 }
@@ -58,6 +59,12 @@ interface SubmitQuestionResponse {
 interface VoteResponse {
   success: boolean
   data: { voted: boolean } | null
+  error: string | null
+}
+
+interface ReportResponse {
+  success: boolean
+  data: { reported: boolean } | null
   error: string | null
 }
 
@@ -305,6 +312,41 @@ async function upvote(questionId: string) {
   }
 }
 
+const reportingQuestionId = ref<string | null>(null)
+const reportError = ref<string | null>(null)
+
+async function reportQuestion(questionId: string) {
+  if (!context.value) return
+  reportError.value = null
+  reportingQuestionId.value = questionId
+
+  try {
+    const identity = getDeviceIdentity(context.value.id)
+
+    const result = await $fetch<ReportResponse>('/api/questions/report', {
+      method: 'POST',
+      body: {
+        eventId: context.value.id,
+        token: identity.token,
+        questionId
+      }
+    })
+
+    if (!result.success) {
+      reportError.value = result.error ?? 'Something went wrong. Please try again.'
+      return
+    }
+
+    const target = questionsResponse.value?.data?.questions.find(q => q.id === questionId)
+    if (target) target.reported = true
+  } catch (err) {
+    const data = (err as { data?: ReportResponse })?.data
+    reportError.value = data?.error ?? 'Something went wrong. Please try again.'
+  } finally {
+    reportingQuestionId.value = null
+  }
+}
+
 const editingQuestionId = ref<string | null>(null)
 const editText = ref('')
 const savingEdit = ref(false)
@@ -517,6 +559,7 @@ async function deleteQuestion(questionId: string) {
         Voting is currently closed.
       </p>
       <UAlert v-if="voteError" color="error" variant="subtle" :title="voteError" class="mb-3" />
+      <UAlert v-if="reportError" color="error" variant="subtle" :title="reportError" class="mb-3" />
       <div class="flex flex-col gap-2">
         <UCard v-for="question in questions" :key="question.id">
           <div class="flex items-center justify-between gap-3">
@@ -538,6 +581,16 @@ async function deleteQuestion(questionId: string) {
                 :loading="votingQuestionId === question.id"
                 :label="question.hasVoted ? 'Voted' : 'Upvote'"
                 @click="upvote(question.id)"
+              />
+              <UButton
+                v-if="joined"
+                size="xs"
+                variant="ghost"
+                color="error"
+                :disabled="question.reported"
+                :loading="reportingQuestionId === question.id"
+                :label="question.reported ? 'Reported' : 'Report'"
+                @click="reportQuestion(question.id)"
               />
             </div>
           </div>

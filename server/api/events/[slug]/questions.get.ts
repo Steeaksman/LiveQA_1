@@ -50,6 +50,7 @@ export default defineEventHandler(async (event) => {
   const { data: questions } = await questionsQuery
 
   let votedQuestionIds = new Set<string>()
+  let reportedQuestionIds = new Set<string>()
 
   if (token) {
     const { data: attendee } = await supabase
@@ -61,13 +62,21 @@ export default defineEventHandler(async (event) => {
       .maybeSingle()
 
     if (attendee) {
-      const { data: votes } = await supabase
-        .from('votes')
-        .select('question_id')
-        .eq('attendee_id', attendee.id)
-        .in('question_id', (questions ?? []).map(q => q.id))
+      const [votesResult, reportsResult] = await Promise.all([
+        supabase
+          .from('votes')
+          .select('question_id')
+          .eq('attendee_id', attendee.id)
+          .in('question_id', (questions ?? []).map(q => q.id)),
+        supabase
+          .from('content_reports')
+          .select('question_id')
+          .eq('attendee_id', attendee.id)
+          .in('question_id', (questions ?? []).map(q => q.id))
+      ])
 
-      votedQuestionIds = new Set((votes ?? []).map(v => v.question_id))
+      votedQuestionIds = new Set((votesResult.data ?? []).map(v => v.question_id))
+      reportedQuestionIds = new Set((reportsResult.data ?? []).filter(r => r.question_id).map(r => r.question_id as string))
     }
   }
 
@@ -97,6 +106,7 @@ export default defineEventHandler(async (event) => {
     createdAt: q.created_at,
     rawVoteCount: q.votes?.[0]?.count ?? 0,
     hasVoted: votedQuestionIds.has(q.id),
+    reported: reportedQuestionIds.has(q.id),
     anonymous: q.anonymous,
     attendeeId: q.attendee_id
   }))
@@ -116,6 +126,7 @@ export default defineEventHandler(async (event) => {
       text: r.text,
       voteCount: hideVoteCounts ? null : r.rawVoteCount,
       hasVoted: r.hasVoted,
+      reported: r.reported,
       displayName: r.anonymous ? null : submitter?.display_name ?? null,
       attendeeType: (r.anonymous || !showAttendeeType) ? null : attendeeTypeLabel ?? null
     }

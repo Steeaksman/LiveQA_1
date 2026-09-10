@@ -31,7 +31,7 @@ export default defineEventHandler(async (event) => {
       .single(),
     supabase
       .from('questions')
-      .select('id, text, created_at, attendee_id, anonymous, approval_status, visibility, answered, archived, topic_id, votes(count)')
+      .select('id, text, created_at, attendee_id, anonymous, approval_status, visibility, answered, archived, topic_id, votes(count), content_reports(count)')
       .eq('event_id', session.eventId)
       .is('deleted_at', null)
   ])
@@ -80,6 +80,7 @@ export default defineEventHandler(async (event) => {
         answered: q.answered,
         archived: q.archived,
         voteCount: q.votes?.[0]?.count ?? 0,
+        reportCount: q.content_reports?.[0]?.count ?? 0,
         displayName: q.anonymous ? null : submitter?.display_name ?? null,
         attendeeType: (q.anonymous || !showAttendeeType) ? null : attendeeTypeLabel ?? null,
         topicName: q.topic_id ? topicNameById.get(q.topic_id) ?? null : null

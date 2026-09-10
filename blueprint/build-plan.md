@@ -109,7 +109,7 @@ cleaned-up checkbox version before generating the project overview.
 - [x] 21. **Bulk moderation & Archive All Unanswered** - multi-select actions plus the confirmed one-click unanswered-archive
 - [x] 22. **Current speaker/topic tracking** - optional per-event topic setting that new questions inherit; existing questions keep their original topic
 - [x] 23. **Moderator notifications** - visual (always on) plus opt-in sound/browser notifications
-- [ ] 24. **Attendee content reporting** - report a question/reply (deduped per attendee), surfaced to moderators for review
+- [x] 24. **Attendee content reporting** - report a question/reply (deduped per attendee), surfaced to moderators for review
 
 **Realtime & resilience**
 
