@@ -10,13 +10,6 @@ watch(() => props.url, async (url) => {
   pngDataUrl.value = await generateQrPngDataUrl(url)
 }, { immediate: true })
 
-function downloadDataUrl(dataUrl: string, filename: string) {
-  const anchor = document.createElement('a')
-  anchor.href = dataUrl
-  anchor.download = filename
-  anchor.click()
-}
-
 function filenameFor(extension: string): string {
   const slug = props.label.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
   return `${slug}-qr.${extension}`

@@ -12,7 +12,7 @@ const supabase = useSupabase()
 
 const loading = ref(true)
 const notFound = ref(false)
-const activeTab = ref<'details' | 'attendee-types' | 'settings' | 'qr-codes'>('details')
+const activeTab = ref<'details' | 'attendee-types' | 'settings' | 'qr-codes' | 'signage'>('details')
 
 const name = ref('')
 const slug = ref('')
@@ -256,6 +256,11 @@ async function saveSettings() {
           label="QR codes"
           @click="activeTab = 'qr-codes'"
         />
+        <UButton
+          :variant="activeTab === 'signage' ? 'solid' : 'ghost'"
+          label="Signage"
+          @click="activeTab = 'signage'"
+        />
       </div>
 
       <UCard v-if="activeTab === 'details'">
@@ -319,9 +324,13 @@ async function saveSettings() {
         </div>
       </UCard>
 
-      <div v-else class="flex flex-col gap-4">
+      <div v-else-if="activeTab === 'qr-codes'" class="flex flex-col gap-4">
         <QrCodeCard label="Audience" :url="audienceUrl" />
         <QrCodeCard label="Moderator" :url="moderatorUrl" />
+      </div>
+
+      <div v-else>
+        <SignageExport :event-name="name" :url="audienceUrl" :join-code="joinCode" />
       </div>
     </div>
   </div>
