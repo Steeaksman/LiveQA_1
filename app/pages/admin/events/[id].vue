@@ -43,6 +43,7 @@ const moderationMode = ref<'immediate' | 'queue'>('queue')
 const hideVoteCounts = ref(false)
 const submissionsOpen = ref(false)
 const votingOpen = ref(false)
+const moderatorAccessEnabled = ref(false)
 const requireAttendeeName = ref(false)
 const requireAttendeeType = ref(false)
 const duplicateCheckOptions = [
@@ -62,6 +63,11 @@ const anonymityMode = ref<'named' | 'optional' | 'always'>('always')
 const showAttendeeType = ref(false)
 const settingsError = ref<string | null>(null)
 const savingSettings = ref(false)
+
+const moderatorPassword = ref('')
+const moderatorPasswordError = ref<string | null>(null)
+const moderatorPasswordSuccess = ref(false)
+const savingModeratorPassword = ref(false)
 
 const themeModeOptions = [
   { label: 'Light', value: 'light' },
@@ -130,14 +136,16 @@ onMounted(async () => {
   }
   submissionsOpen.value = false
   votingOpen.value = false
+  moderatorAccessEnabled.value = false
   const { data: eventOpenState } = await supabase
     .from('events')
-    .select('submissions_open, voting_open')
+    .select('submissions_open, voting_open, moderator_access_enabled')
     .eq('id', eventId)
     .single()
   if (eventOpenState) {
     submissionsOpen.value = eventOpenState.submissions_open
     votingOpen.value = eventOpenState.voting_open
+    moderatorAccessEnabled.value = eventOpenState.moderator_access_enabled
   }
 
   attendeeTypes.value = attendeeTypesResult.data ?? []
@@ -351,7 +359,8 @@ async function saveSettings() {
         .from('events')
         .update({
           submissions_open: submissionsOpen.value,
-          voting_open: votingOpen.value
+          voting_open: votingOpen.value,
+          moderator_access_enabled: moderatorAccessEnabled.value
         })
         .eq('id', eventId)
         .select('id')
@@ -362,6 +371,46 @@ async function saveSettings() {
     }
   } finally {
     savingSettings.value = false
+  }
+}
+
+interface ModeratorPasswordResponse {
+  success: boolean
+  data: null
+  error: string | null
+}
+
+async function saveModeratorPassword() {
+  moderatorPasswordError.value = null
+  moderatorPasswordSuccess.value = false
+
+  savingModeratorPassword.value = true
+
+  try {
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session) {
+      moderatorPasswordError.value = 'Your session expired. Please log in again.'
+      return
+    }
+
+    const response = await $fetch<ModeratorPasswordResponse>(`/api/admin/events/${eventId}/moderator-password`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${session.access_token}` },
+      body: { password: moderatorPassword.value }
+    })
+
+    if (!response.success) {
+      moderatorPasswordError.value = response.error ?? 'Something went wrong. Please try again.'
+      return
+    }
+
+    moderatorPassword.value = ''
+    moderatorPasswordSuccess.value = true
+  } catch (err) {
+    const data = (err as { data?: ModeratorPasswordResponse })?.data
+    moderatorPasswordError.value = data?.error ?? 'Something went wrong. Please try again.'
+  } finally {
+    savingModeratorPassword.value = false
   }
 }
 
@@ -519,6 +568,10 @@ async function saveBranding() {
             <USwitch v-model="votingOpen" />
           </div>
           <div class="flex items-center justify-between">
+            <span>Moderator access enabled</span>
+            <USwitch v-model="moderatorAccessEnabled" />
+          </div>
+          <div class="flex items-center justify-between">
             <span>Require attendee name</span>
             <USwitch v-model="requireAttendeeName" />
           </div>
@@ -541,6 +594,12 @@ async function saveBranding() {
           </div>
           <UAlert v-if="settingsError" color="error" variant="subtle" :title="settingsError" />
           <UButton :loading="savingSettings" label="Save" class="self-start" @click="saveSettings" />
+
+          <UFormField label="Moderator password" :error="moderatorPasswordError ?? undefined">
+            <UInput v-model="moderatorPassword" type="password" placeholder="Leave blank to keep unchanged" />
+          </UFormField>
+          <UAlert v-if="moderatorPasswordSuccess" color="success" variant="subtle" title="Moderator password updated." />
+          <UButton :loading="savingModeratorPassword" label="Set password" class="self-start" @click="saveModeratorPassword" />
         </div>
       </UCard>
 
