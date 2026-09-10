@@ -454,8 +454,8 @@ function playNotificationSound() {
   }
 }
 
-async function pollForNewArrivals() {
-  await loadQueue()
+async function pollQueue() {
+  await Promise.all([loadQueue(), loadTopics()])
 
   const current = currentPendingIds()
 
@@ -478,7 +478,7 @@ async function pollForNewArrivals() {
 
 watch(authenticated, (value) => {
   if (value) {
-    pollTimer = setInterval(pollForNewArrivals, 15000)
+    pollTimer = setInterval(pollQueue, 15000)
   } else if (pollTimer) {
     clearInterval(pollTimer)
     pollTimer = undefined

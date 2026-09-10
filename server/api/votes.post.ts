@@ -73,7 +73,7 @@ export default defineEventHandler(async (event) => {
 
   const { error } = await supabase
     .from('votes')
-    .insert({ question_id: questionId, attendee_id: attendee.id })
+    .insert({ question_id: questionId, attendee_id: attendee.id, event_id: eventId })
 
   if (error && error.code !== DUPLICATE_VOTE_CODE) {
     setResponseStatus(event, 500)

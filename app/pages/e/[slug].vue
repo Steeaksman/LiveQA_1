@@ -160,6 +160,31 @@ onMounted(() => {
   }
 })
 
+onMounted(() => {
+  if (!context.value) return
+
+  const supabase = useSupabase()
+  let debounceTimer: ReturnType<typeof setTimeout> | undefined
+
+  function scheduleRefresh() {
+    if (debounceTimer) clearTimeout(debounceTimer)
+    debounceTimer = setTimeout(() => {
+      refreshQuestions()
+    }, 500)
+  }
+
+  const channel = supabase
+    .channel(`event:${context.value.id}:questions`)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'questions', filter: `event_id=eq.${context.value.id}` }, scheduleRefresh)
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'votes', filter: `event_id=eq.${context.value.id}` }, scheduleRefresh)
+    .subscribe()
+
+  onUnmounted(() => {
+    if (debounceTimer) clearTimeout(debounceTimer)
+    supabase.removeChannel(channel)
+  })
+})
+
 async function join() {
   if (!context.value) return
   joinError.value = null
