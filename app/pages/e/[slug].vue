@@ -177,7 +177,9 @@ onMounted(() => {
     .channel(`event:${context.value.id}:questions`)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'questions', filter: `event_id=eq.${context.value.id}` }, scheduleRefresh)
     .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'votes', filter: `event_id=eq.${context.value.id}` }, scheduleRefresh)
-    .subscribe()
+    .subscribe((status) => {
+      if (status === 'SUBSCRIBED') channel.track({ role: 'attendee' })
+    })
 
   onUnmounted(() => {
     if (debounceTimer) clearTimeout(debounceTimer)

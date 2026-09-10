@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import type { RealtimeChannel } from '@supabase/supabase-js'
+
 interface EventContext {
   id: string
   name: string
@@ -476,17 +478,47 @@ async function pollQueue() {
   }
 }
 
+const attendeeCount = ref(0)
+const moderatorCount = ref(0)
+let presenceChannel: RealtimeChannel | undefined
+
+function updatePresenceCounts() {
+  if (!presenceChannel) return
+  const presences = Object.values(presenceChannel.presenceState()).flat() as { role?: string }[]
+  attendeeCount.value = presences.filter(p => p.role === 'attendee').length
+  moderatorCount.value = presences.filter(p => p.role === 'moderator').length
+}
+
 watch(authenticated, (value) => {
   if (value) {
     pollTimer = setInterval(pollQueue, 15000)
-  } else if (pollTimer) {
-    clearInterval(pollTimer)
-    pollTimer = undefined
+
+    if (context.value) {
+      const supabase = useSupabase()
+      presenceChannel = supabase
+        .channel(`event:${context.value.id}:questions`)
+        .on('presence', { event: 'sync' }, updatePresenceCounts)
+        .on('presence', { event: 'join' }, updatePresenceCounts)
+        .on('presence', { event: 'leave' }, updatePresenceCounts)
+        .subscribe((status) => {
+          if (status === 'SUBSCRIBED') presenceChannel?.track({ role: 'moderator' })
+        })
+    }
+  } else {
+    if (pollTimer) {
+      clearInterval(pollTimer)
+      pollTimer = undefined
+    }
+    if (presenceChannel) {
+      useSupabase().removeChannel(presenceChannel)
+      presenceChannel = undefined
+    }
   }
 })
 
 onUnmounted(() => {
   if (pollTimer) clearInterval(pollTimer)
+  if (presenceChannel) useSupabase().removeChannel(presenceChannel)
 })
 
 async function updateControl(field: 'submissionsOpen' | 'votingOpen', value: boolean) {
@@ -561,6 +593,10 @@ async function login() {
       <h1 class="mb-4 text-xl font-semibold">
         {{ context?.name }}
       </h1>
+
+      <p class="mb-1 text-sm text-gray-500">
+        {{ attendeeCount }} active attendees - {{ moderatorCount }} active moderators
+      </p>
 
       <p class="mb-4 font-semibold">
         {{ pendingCount === 0 ? 'No pending questions' : `${pendingCount} pending` }}
