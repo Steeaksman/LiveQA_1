@@ -31,7 +31,7 @@ export default defineEventHandler(async (event) => {
       .single(),
     supabase
       .from('questions')
-      .select('id, text, created_at, attendee_id, anonymous, approval_status, visibility, answered, archived, votes(count)')
+      .select('id, text, created_at, attendee_id, anonymous, approval_status, visibility, answered, archived, topic_id, votes(count)')
       .eq('event_id', session.eventId)
       .is('deleted_at', null)
   ])
@@ -56,6 +56,16 @@ export default defineEventHandler(async (event) => {
   const submittersById = new Map((submitters ?? []).map(a => [a.id, a]))
   const attendeeTypeLabelById = new Map((attendeeTypeRows ?? []).map(t => [t.id, t.label]))
 
+  const topicIds = [...new Set(questions.map(q => q.topic_id).filter((id): id is string => !!id))]
+
+  const { data: topicRows } = await supabase
+    .from('topics')
+    .select('id, name')
+    .in('id', topicIds.length ? topicIds : [''])
+    .is('deleted_at', null)
+
+  const topicNameById = new Map((topicRows ?? []).map(t => [t.id, t.name]))
+
   const result = questions
     .map(q => {
       const submitter = submittersById.get(q.attendee_id)
@@ -71,7 +81,8 @@ export default defineEventHandler(async (event) => {
         archived: q.archived,
         voteCount: q.votes?.[0]?.count ?? 0,
         displayName: q.anonymous ? null : submitter?.display_name ?? null,
-        attendeeType: (q.anonymous || !showAttendeeType) ? null : attendeeTypeLabel ?? null
+        attendeeType: (q.anonymous || !showAttendeeType) ? null : attendeeTypeLabel ?? null,
+        topicName: q.topic_id ? topicNameById.get(q.topic_id) ?? null : null
       }
     })
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt))

@@ -84,11 +84,19 @@ export default defineEventHandler(async (event) => {
       ? body?.anonymous === true
       : false
 
+  const { data: currentTopic } = await supabase
+    .from('topics')
+    .select('id')
+    .eq('event_id', eventId)
+    .eq('is_current', true)
+    .is('deleted_at', null)
+    .maybeSingle()
+
   const { data: created, error } = await supabase
     .from('questions')
     .insert({
       event_id: eventId,
-      topic_id: null,
+      topic_id: currentTopic?.id ?? null,
       attendee_id: attendee.id,
       text,
       anonymous,

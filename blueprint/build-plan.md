@@ -107,7 +107,7 @@ cleaned-up checkbox version before generating the project overview.
 - [x] 19. **Moderator authentication** - moderator QR to password entry to secure event-scoped session, with hashed passwords and rate-limited attempts
 - [x] 20. **Moderator queue & core actions** - approve, reject, hide, archive, mark answered, change visibility, change current topic, open/close submissions and voting
 - [x] 21. **Bulk moderation & Archive All Unanswered** - multi-select actions plus the confirmed one-click unanswered-archive
-- [ ] 22. **Current speaker/topic tracking** - optional per-event topic setting that new questions inherit; existing questions keep their original topic
+- [x] 22. **Current speaker/topic tracking** - optional per-event topic setting that new questions inherit; existing questions keep their original topic
 - [ ] 23. **Moderator notifications** - visual (always on) plus opt-in sound/browser notifications
 - [ ] 24. **Attendee content reporting** - report a question/reply (deduped per attendee), surfaced to moderators for review
 

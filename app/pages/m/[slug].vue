@@ -36,6 +36,7 @@ interface ModerationQuestion {
   voteCount: number
   displayName: string | null
   attendeeType: string | null
+  topicName: string | null
 }
 
 interface ModerationQuestionsResponse {
@@ -69,6 +70,33 @@ interface EventControlsResponse {
 interface BulkActionResponse {
   success: boolean
   data: { updatedCount: number, skippedCount: number } | null
+  error: string | null
+}
+
+interface Topic {
+  id: string
+  name: string
+  sortOrder: number
+  isCurrent: boolean
+}
+
+interface TopicsResponse {
+  success: boolean
+  data: { topics: Topic[] } | null
+  error: string | null
+}
+
+interface CreateTopicResponse {
+  success: boolean
+  data: Topic | null
+  error: string | null
+}
+
+type TopicAction = 'rename' | 'set_current' | 'delete' | 'move_up' | 'move_down'
+
+interface TopicActionResponse {
+  success: boolean
+  data: null
   error: string | null
 }
 
@@ -106,6 +134,97 @@ const queueError = ref<string | null>(null)
 const controlsError = ref<string | null>(null)
 const actionErrors = ref<Record<string, string>>({})
 const actioningQuestionId = ref<string | null>(null)
+
+const topics = ref<Topic[]>([])
+const topicsError = ref<string | null>(null)
+const newTopicName = ref('')
+const addingTopic = ref(false)
+const topicActionLoading = ref<string | null>(null)
+const renamingTopicId = ref<string | null>(null)
+const renameTopicName = ref('')
+
+async function loadTopics() {
+  if (!sessionToken.value) return
+  topicsError.value = null
+
+  try {
+    const result = await $fetch<TopicsResponse>(`/api/events/${slug}/moderation/topics`, {
+      query: { token: sessionToken.value }
+    })
+
+    if (!result.success || !result.data) {
+      topicsError.value = result.error ?? 'Something went wrong. Please try again.'
+      return
+    }
+
+    topics.value = result.data.topics
+  } catch (err) {
+    const data = (err as { data?: TopicsResponse })?.data
+    topicsError.value = data?.error ?? 'Something went wrong. Please try again.'
+  }
+}
+
+async function addTopic() {
+  if (!sessionToken.value || !newTopicName.value.trim()) return
+  topicsError.value = null
+  addingTopic.value = true
+
+  try {
+    const result = await $fetch<CreateTopicResponse>(`/api/events/${slug}/moderation/topics`, {
+      method: 'POST',
+      body: { token: sessionToken.value, name: newTopicName.value }
+    })
+
+    if (!result.success) {
+      topicsError.value = result.error ?? 'Something went wrong. Please try again.'
+      return
+    }
+
+    newTopicName.value = ''
+    await loadTopics()
+  } catch (err) {
+    const data = (err as { data?: CreateTopicResponse })?.data
+    topicsError.value = data?.error ?? 'Something went wrong. Please try again.'
+  } finally {
+    addingTopic.value = false
+  }
+}
+
+async function performTopicAction(topicId: string, action: TopicAction, name?: string) {
+  if (!sessionToken.value) return
+  topicsError.value = null
+  topicActionLoading.value = topicId
+
+  try {
+    const result = await $fetch<TopicActionResponse>(`/api/events/${slug}/moderation/topics/action`, {
+      method: 'POST',
+      body: { token: sessionToken.value, topicId, action, name }
+    })
+
+    if (!result.success) {
+      topicsError.value = result.error ?? 'Something went wrong. Please try again.'
+      return
+    }
+
+    if (action === 'rename') renamingTopicId.value = null
+    await loadTopics()
+  } catch (err) {
+    const data = (err as { data?: TopicActionResponse })?.data
+    topicsError.value = data?.error ?? 'Something went wrong. Please try again.'
+  } finally {
+    topicActionLoading.value = null
+  }
+}
+
+function startRename(topic: Topic) {
+  renamingTopicId.value = topic.id
+  renameTopicName.value = topic.name
+}
+
+function submitRename(topicId: string) {
+  if (!renameTopicName.value.trim()) return
+  performTopicAction(topicId, 'rename', renameTopicName.value)
+}
 
 async function loadQueue() {
   if (!sessionToken.value) return
@@ -150,7 +269,7 @@ onMounted(async () => {
       if (result.data?.valid) {
         sessionToken.value = stored.sessionToken
         authenticated.value = true
-        await loadQueue()
+        await Promise.all([loadQueue(), loadTopics()])
       } else {
         clearStoredModeratorSession(context.value.id)
       }
@@ -310,7 +429,7 @@ async function login() {
     })
     sessionToken.value = result.data.sessionToken
     authenticated.value = true
-    await loadQueue()
+    await Promise.all([loadQueue(), loadTopics()])
   } catch (err) {
     const data = (err as { data?: ModeratorLoginResponse })?.data
     loginError.value = data?.error ?? 'Something went wrong. Please try again.'
@@ -344,6 +463,44 @@ async function login() {
         </div>
         <UAlert v-if="controlsError" color="error" variant="subtle" :title="controlsError" />
       </div>
+
+      <UCard class="mb-4">
+        <h2 class="mb-2 font-semibold">
+          Topics
+        </h2>
+        <div class="flex flex-col gap-2">
+          <div v-for="(t, i) in topics" :key="t.id" class="flex items-center gap-2">
+            <template v-if="renamingTopicId === t.id">
+              <UInput v-model="renameTopicName" size="sm" @keyup.enter="submitRename(t.id)" />
+              <UButton size="sm" label="Save" :loading="topicActionLoading === t.id" @click="submitRename(t.id)" />
+              <UButton size="sm" variant="ghost" label="Cancel" @click="renamingTopicId = null" />
+            </template>
+            <template v-else>
+              <span class="flex-1" :class="{ 'font-semibold': t.isCurrent }">{{ t.name }}</span>
+              <span v-if="t.isCurrent" class="text-xs text-gray-500">Current</span>
+              <UButton
+                v-else
+                size="sm"
+                label="Set current"
+                :loading="topicActionLoading === t.id"
+                @click="performTopicAction(t.id, 'set_current')"
+              />
+              <UButton size="sm" variant="ghost" label="Up" :disabled="i === 0" @click="performTopicAction(t.id, 'move_up')" />
+              <UButton size="sm" variant="ghost" label="Down" :disabled="i === topics.length - 1" @click="performTopicAction(t.id, 'move_down')" />
+              <UButton size="sm" variant="ghost" label="Rename" @click="startRename(t)" />
+              <UButton size="sm" variant="ghost" color="error" label="Delete" @click="performTopicAction(t.id, 'delete')" />
+            </template>
+          </div>
+          <p v-if="topics.length === 0" class="text-sm text-gray-500">
+            No topics yet.
+          </p>
+          <UAlert v-if="topicsError" color="error" variant="subtle" :title="topicsError" />
+          <div class="flex gap-2">
+            <UInput v-model="newTopicName" placeholder="New topic name" size="sm" @keyup.enter="addTopic" />
+            <UButton size="sm" label="Add topic" :loading="addingTopic" @click="addTopic" />
+          </div>
+        </div>
+      </UCard>
 
       <UButton
         label="Archive All Unanswered"
@@ -396,6 +553,7 @@ async function login() {
             {{ q.approvalStatus }} - {{ q.visibility }}
             <template v-if="q.answered"> - answered</template>
             <template v-if="q.archived"> - archived</template>
+            <template v-if="q.topicName"> - {{ q.topicName }}</template>
             - {{ q.voteCount }} votes
           </p>
           <UAlert v-if="actionErrors[q.id]" color="error" variant="subtle" :title="actionErrors[q.id]" class="mt-2" />
