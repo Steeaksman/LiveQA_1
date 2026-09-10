@@ -84,7 +84,7 @@ cleaned-up checkbox version before generating the project overview.
   - [x] 4c. **Review & publish step** - draft to scheduled/live transition (in practice: draft or live only - see the archived spec for why `scheduled` was excluded)
 - [x] 5. **Event tabbed management** - edit an existing event's settings after creation
 - [x] 6. **Audience URL & join code** - unique friendly slug and short join code, both customizable and unique, plus the generic `/join` code-entry page
-- [ ] 7. **QR code generation** - Audience QR and Moderator QR, downloadable as PNG/SVG
+- [x] 7. **QR code generation** - Audience QR and Moderator QR, downloadable as PNG/SVG
 - [ ] 8. **Branded signage export** - QR + logo + event name + join code + instructions graphic for slides/handouts/posters
 - [ ] 9. **Event templates** - save and apply reusable event configuration bundles (no attendee/Q&A data)
 - [ ] 10. **Event duplication** - copy an event's configuration only (never questions, replies, votes, attendees, reports, attachments)

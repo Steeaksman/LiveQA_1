@@ -12,7 +12,7 @@ const supabase = useSupabase()
 
 const loading = ref(true)
 const notFound = ref(false)
-const activeTab = ref<'details' | 'attendee-types' | 'settings'>('details')
+const activeTab = ref<'details' | 'attendee-types' | 'settings' | 'qr-codes'>('details')
 
 const name = ref('')
 const slug = ref('')
@@ -39,6 +39,9 @@ const submissionsOpen = ref(false)
 const votingOpen = ref(false)
 const settingsError = ref<string | null>(null)
 const savingSettings = ref(false)
+
+const audienceUrl = computed(() => `${location.origin}/e/${slug.value}`)
+const moderatorUrl = computed(() => `${location.origin}/m/${slug.value}`)
 
 onMounted(async () => {
   const { data: event } = await supabase
@@ -248,6 +251,11 @@ async function saveSettings() {
           label="Settings"
           @click="activeTab = 'settings'"
         />
+        <UButton
+          :variant="activeTab === 'qr-codes' ? 'solid' : 'ghost'"
+          label="QR codes"
+          @click="activeTab = 'qr-codes'"
+        />
       </div>
 
       <UCard v-if="activeTab === 'details'">
@@ -286,7 +294,7 @@ async function saveSettings() {
         </div>
       </UCard>
 
-      <UCard v-else>
+      <UCard v-else-if="activeTab === 'settings'">
         <div class="flex flex-col gap-3">
           <UFormField label="Max question length">
             <UInput v-model.number="questionMaxLength" type="number" />
@@ -310,6 +318,11 @@ async function saveSettings() {
           <UButton :loading="savingSettings" label="Save" class="self-start" @click="saveSettings" />
         </div>
       </UCard>
+
+      <div v-else class="flex flex-col gap-4">
+        <QrCodeCard label="Audience" :url="audienceUrl" />
+        <QrCodeCard label="Moderator" :url="moderatorUrl" />
+      </div>
     </div>
   </div>
 </template>
