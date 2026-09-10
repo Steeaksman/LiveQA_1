@@ -6,6 +6,18 @@ interface AttendeeTypeRow {
   label: string
 }
 
+interface TemplateOption {
+  id: string
+  name: string
+}
+
+interface TemplateConfig {
+  questionMaxLength: number
+  moderationMode: 'immediate' | 'queue'
+  hideVoteCounts: boolean
+  attendeeTypes: string[]
+}
+
 const supabase = useSupabase()
 
 const step = ref<'details' | 'attendee-types' | 'settings' | 'review'>('details')
@@ -17,10 +29,27 @@ const name = ref('')
 const creating = ref(false)
 const createError = ref<string | null>(null)
 
+const templates = ref<TemplateOption[]>([])
+const selectedTemplateId = ref<string | null>(null)
+const templateOptions = computed(() => [
+  { label: 'Blank', value: null },
+  ...templates.value.map(t => ({ label: t.name, value: t.id }))
+])
+
 const newLabel = ref('')
 const addingLabel = ref(false)
 const attendeeTypes = ref<AttendeeTypeRow[]>([])
 const attendeeTypesError = ref<string | null>(null)
+
+onMounted(async () => {
+  const { data } = await supabase
+    .from('event_templates')
+    .select('id, name')
+    .is('deleted_at', null)
+    .order('created_at', { ascending: false })
+
+  templates.value = data ?? []
+})
 
 async function createEvent() {
   createError.value = null
@@ -55,13 +84,51 @@ async function createEvent() {
         .single()
 
       if (!error && data) {
-        const { error: settingsError } = await supabase
-          .from('event_settings')
-          .insert({ event_id: data.id })
+        if (selectedTemplateId.value) {
+          const { data: template } = await supabase
+            .from('event_templates')
+            .select('config')
+            .eq('id', selectedTemplateId.value)
+            .single()
 
-        if (settingsError) {
-          createError.value = 'Something went wrong. Please try again.'
-          return
+          const config = template?.config as TemplateConfig | undefined
+
+          const { error: settingsError } = await supabase
+            .from('event_settings')
+            .insert({
+              event_id: data.id,
+              question_max_length: config?.questionMaxLength ?? 500,
+              moderation_mode: config?.moderationMode ?? 'queue',
+              hide_vote_counts: config?.hideVoteCounts ?? false
+            })
+
+          if (settingsError) {
+            createError.value = 'Something went wrong. Please try again.'
+            return
+          }
+
+          if (config?.attendeeTypes?.length) {
+            const { data: insertedTypes, error: typesError } = await supabase
+              .from('attendee_types')
+              .insert(config.attendeeTypes.map(label => ({ event_id: data.id, label })))
+              .select('id, label')
+
+            if (typesError) {
+              createError.value = 'Something went wrong. Please try again.'
+              return
+            }
+
+            attendeeTypes.value = insertedTypes ?? []
+          }
+        } else {
+          const { error: settingsError } = await supabase
+            .from('event_settings')
+            .insert({ event_id: data.id })
+
+          if (settingsError) {
+            createError.value = 'Something went wrong. Please try again.'
+            return
+          }
         }
 
         eventId.value = data.id
@@ -251,6 +318,9 @@ async function publish() {
       <UForm :state="{}" class="flex flex-col gap-3" @submit="createEvent">
         <UFormField label="Event name" required>
           <UInput v-model="name" />
+        </UFormField>
+        <UFormField label="Start from template">
+          <USelect v-model="selectedTemplateId" :items="templateOptions" value-key="value" />
         </UFormField>
         <UAlert v-if="createError" color="error" variant="subtle" :title="createError" />
         <UButton type="submit" :loading="creating" label="Create" class="self-start" />

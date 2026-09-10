@@ -35,6 +35,9 @@ async function logout() {
       <NuxtLink to="/admin/event-managers">
         Event Managers
       </NuxtLink>
+      <NuxtLink to="/admin/templates">
+        Templates
+      </NuxtLink>
     </template>
     <UButton label="Log out" @click="logout" />
   </div>
