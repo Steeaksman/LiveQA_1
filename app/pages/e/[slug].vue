@@ -79,9 +79,19 @@ const { data: response } = await useFetch<EventContextResponse>(`/api/events/${s
 
 const sort = ref<SortOption>('newest')
 const voteToken = ref<string | undefined>(undefined)
+const searchInput = ref('')
+const searchTerm = ref('')
+let searchDebounceTimer: ReturnType<typeof setTimeout> | undefined
+
+watch(searchInput, (value) => {
+  if (searchDebounceTimer) clearTimeout(searchDebounceTimer)
+  searchDebounceTimer = setTimeout(() => {
+    searchTerm.value = value.trim()
+  }, 400)
+})
 
 const { data: questionsResponse, refresh: refreshQuestions } = await useFetch<QuestionsResponse>(`/api/events/${slug}/questions`, {
-  query: computed(() => ({ sort: sort.value, token: voteToken.value }))
+  query: computed(() => ({ sort: sort.value, token: voteToken.value, search: searchTerm.value || undefined }))
 })
 
 const context = computed(() => response.value?.data ?? null)
@@ -329,6 +339,7 @@ async function upvote(questionId: string) {
           <UButton size="xs" variant="subtle" label="Refresh" @click="refreshQuestions" />
         </div>
       </div>
+      <UInput v-model="searchInput" placeholder="Search questions" class="mb-3 w-full" />
       <p v-if="!context.votingOpen" class="mb-3 text-sm text-gray-500">
         Voting is currently closed.
       </p>
@@ -353,7 +364,10 @@ async function upvote(questionId: string) {
             </div>
           </div>
         </UCard>
-        <p v-if="questions.length === 0" class="text-sm text-gray-500">
+        <p v-if="questions.length === 0 && searchTerm" class="text-sm text-gray-500">
+          No questions match your search.
+        </p>
+        <p v-else-if="questions.length === 0" class="text-sm text-gray-500">
           No questions yet - be the first to ask!
         </p>
       </div>

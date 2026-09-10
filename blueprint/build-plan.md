@@ -98,7 +98,7 @@ cleaned-up checkbox version before generating the project overview.
 - [x] 13. **Public Q&A feed** - submit and list questions honoring the event's moderation mode and visibility rules
 - [x] 14. **Voting** - one upvote per attendee per question, live counts, sort by votes/newest/oldest
 - [x] 15. **Duplicate-question suggestions** - Postgres trigram/full-text similarity suggestions while typing, with the configurable strictness levels
-- [ ] 16. **Question search** - attendee-facing search over public questions only
+- [x] 16. **Question search** - attendee-facing search over public questions only
 - [ ] 17. **My Questions & attendee edit/delete** - attendee's own submissions view, edit/delete window enforced server-side per event config
 - [ ] 18. **Anonymous questions & attendee-type visibility** - per-event anonymity modes and admin control over whether attendee type is publicly shown
 

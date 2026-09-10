@@ -14,6 +14,7 @@ export default defineEventHandler(async (event) => {
   const query = getQuery(event)
   const sort = resolveSort(query.sort)
   const token = typeof query.token === 'string' ? query.token : ''
+  const search = typeof query.search === 'string' ? query.search.trim() : ''
 
   const supabase = useSupabaseServiceRole()
 
@@ -35,12 +36,18 @@ export default defineEventHandler(async (event) => {
     .eq('event_id', found.id)
     .single()
 
-  const { data: questions } = await supabase
+  let questionsQuery = supabase
     .from('questions')
     .select('id, text, created_at, votes(count)')
     .eq('event_id', found.id)
     .eq('visibility', 'public')
     .is('deleted_at', null)
+
+  if (search) {
+    questionsQuery = questionsQuery.ilike('text', `%${search}%`)
+  }
+
+  const { data: questions } = await questionsQuery
 
   let votedQuestionIds = new Set<string>()
 
