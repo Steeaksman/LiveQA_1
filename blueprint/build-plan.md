@@ -100,7 +100,7 @@ cleaned-up checkbox version before generating the project overview.
 - [x] 15. **Duplicate-question suggestions** - Postgres trigram/full-text similarity suggestions while typing, with the configurable strictness levels
 - [x] 16. **Question search** - attendee-facing search over public questions only
 - [x] 17. **My Questions & attendee edit/delete** - attendee's own submissions view, edit/delete window enforced server-side per event config
-- [ ] 18. **Anonymous questions & attendee-type visibility** - per-event anonymity modes and admin control over whether attendee type is publicly shown
+- [x] 18. **Anonymous questions & attendee-type visibility** - per-event anonymity modes and admin control over whether attendee type is publicly shown
 
 **Moderation**
 

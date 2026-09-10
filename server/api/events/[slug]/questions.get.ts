@@ -32,13 +32,13 @@ export default defineEventHandler(async (event) => {
 
   const { data: settings } = await supabase
     .from('event_settings')
-    .select('hide_vote_counts')
+    .select('hide_vote_counts, show_attendee_type')
     .eq('event_id', found.id)
     .single()
 
   let questionsQuery = supabase
     .from('questions')
-    .select('id, text, created_at, votes(count)')
+    .select('id, text, created_at, attendee_id, anonymous, votes(count)')
     .eq('event_id', found.id)
     .eq('visibility', 'public')
     .is('deleted_at', null)
@@ -72,13 +72,33 @@ export default defineEventHandler(async (event) => {
   }
 
   const hideVoteCounts = settings?.hide_vote_counts ?? false
+  const showAttendeeType = settings?.show_attendee_type ?? false
+
+  const attendeeIds = [...new Set((questions ?? []).map(q => q.attendee_id))]
+
+  const { data: submitters } = await supabase
+    .from('attendees')
+    .select('id, display_name, attendee_type_id')
+    .in('id', attendeeIds.length ? attendeeIds : [''])
+
+  const attendeeTypeIds = [...new Set((submitters ?? []).map(a => a.attendee_type_id).filter((id): id is string => !!id))]
+
+  const { data: attendeeTypeRows } = await supabase
+    .from('attendee_types')
+    .select('id, label')
+    .in('id', attendeeTypeIds.length ? attendeeTypeIds : [''])
+
+  const submittersById = new Map((submitters ?? []).map(a => [a.id, a]))
+  const attendeeTypeLabelById = new Map((attendeeTypeRows ?? []).map(t => [t.id, t.label]))
 
   const rows = (questions ?? []).map(q => ({
     id: q.id,
     text: q.text,
     createdAt: q.created_at,
     rawVoteCount: q.votes?.[0]?.count ?? 0,
-    hasVoted: votedQuestionIds.has(q.id)
+    hasVoted: votedQuestionIds.has(q.id),
+    anonymous: q.anonymous,
+    attendeeId: q.attendee_id
   }))
 
   rows.sort((a, b) => {
@@ -87,12 +107,19 @@ export default defineEventHandler(async (event) => {
     return b.createdAt.localeCompare(a.createdAt)
   })
 
-  const result = rows.map(r => ({
-    id: r.id,
-    text: r.text,
-    voteCount: hideVoteCounts ? null : r.rawVoteCount,
-    hasVoted: r.hasVoted
-  }))
+  const result = rows.map(r => {
+    const submitter = submittersById.get(r.attendeeId)
+    const attendeeTypeLabel = submitter?.attendee_type_id ? attendeeTypeLabelById.get(submitter.attendee_type_id) : undefined
+
+    return {
+      id: r.id,
+      text: r.text,
+      voteCount: hideVoteCounts ? null : r.rawVoteCount,
+      hasVoted: r.hasVoted,
+      displayName: r.anonymous ? null : submitter?.display_name ?? null,
+      attendeeType: (r.anonymous || !showAttendeeType) ? null : attendeeTypeLabel ?? null
+    }
+  })
 
   return { success: true, data: { questions: result }, error: null }
 })

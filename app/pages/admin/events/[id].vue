@@ -53,6 +53,13 @@ const duplicateCheckOptions = [
 ]
 const duplicateCheckStrictness = ref<'off' | 'low' | 'medium' | 'high'>('off')
 const attendeeEditWindowMinutes = ref(0)
+const anonymityOptions = [
+  { label: 'Never anonymous', value: 'named' },
+  { label: 'Attendee chooses', value: 'optional' },
+  { label: 'Always anonymous', value: 'always' }
+]
+const anonymityMode = ref<'named' | 'optional' | 'always'>('always')
+const showAttendeeType = ref(false)
 const settingsError = ref<string | null>(null)
 const savingSettings = ref(false)
 
@@ -96,7 +103,7 @@ onMounted(async () => {
   const [settingsResult, attendeeTypesResult] = await Promise.all([
     supabase
       .from('event_settings')
-      .select('question_max_length, moderation_mode, hide_vote_counts, accent_color, background_color, welcome_text, theme_mode, require_attendee_name, require_attendee_type, duplicate_check_strictness, attendee_edit_window_minutes')
+      .select('question_max_length, moderation_mode, hide_vote_counts, accent_color, background_color, welcome_text, theme_mode, require_attendee_name, require_attendee_type, duplicate_check_strictness, attendee_edit_window_minutes, anonymity_mode, show_attendee_type')
       .eq('event_id', eventId)
       .single(),
     supabase
@@ -118,6 +125,8 @@ onMounted(async () => {
     requireAttendeeType.value = settingsResult.data.require_attendee_type
     duplicateCheckStrictness.value = settingsResult.data.duplicate_check_strictness
     attendeeEditWindowMinutes.value = settingsResult.data.attendee_edit_window_minutes
+    anonymityMode.value = settingsResult.data.anonymity_mode
+    showAttendeeType.value = settingsResult.data.show_attendee_type
   }
   submissionsOpen.value = false
   votingOpen.value = false
@@ -332,7 +341,9 @@ async function saveSettings() {
           require_attendee_name: requireAttendeeName.value,
           require_attendee_type: requireAttendeeType.value,
           duplicate_check_strictness: duplicateCheckStrictness.value,
-          attendee_edit_window_minutes: attendeeEditWindowMinutes.value
+          attendee_edit_window_minutes: attendeeEditWindowMinutes.value,
+          anonymity_mode: anonymityMode.value,
+          show_attendee_type: showAttendeeType.value
         })
         .eq('event_id', eventId)
         .select('event_id'),
@@ -521,6 +532,13 @@ async function saveBranding() {
           <UFormField label="Attendee edit window (minutes, 0 = disabled)">
             <UInput v-model.number="attendeeEditWindowMinutes" type="number" />
           </UFormField>
+          <UFormField label="Anonymity mode">
+            <USelect v-model="anonymityMode" :items="anonymityOptions" value-key="value" />
+          </UFormField>
+          <div class="flex items-center justify-between">
+            <span>Show attendee type publicly</span>
+            <USwitch v-model="showAttendeeType" />
+          </div>
           <UAlert v-if="settingsError" color="error" variant="subtle" :title="settingsError" />
           <UButton :loading="savingSettings" label="Save" class="self-start" @click="saveSettings" />
         </div>

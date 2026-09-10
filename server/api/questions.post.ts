@@ -5,6 +5,7 @@ interface SubmitQuestionBody {
   eventId?: string
   token?: string
   text?: string
+  anonymous?: boolean
 }
 
 const EVENT_NOT_FOUND_ERROR = 'Event not found.'
@@ -57,7 +58,7 @@ export default defineEventHandler(async (event) => {
 
   const { data: settings } = await supabase
     .from('event_settings')
-    .select('question_max_length, moderation_mode')
+    .select('question_max_length, moderation_mode, anonymity_mode')
     .eq('event_id', eventId)
     .single()
 
@@ -76,6 +77,13 @@ export default defineEventHandler(async (event) => {
 
   const isImmediate = settings?.moderation_mode === 'immediate'
 
+  const anonymityMode = settings?.anonymity_mode ?? 'always'
+  const anonymous = anonymityMode === 'always'
+    ? true
+    : anonymityMode === 'optional'
+      ? body?.anonymous === true
+      : false
+
   const { data: created, error } = await supabase
     .from('questions')
     .insert({
@@ -83,7 +91,7 @@ export default defineEventHandler(async (event) => {
       topic_id: null,
       attendee_id: attendee.id,
       text,
-      anonymous: false,
+      anonymous,
       approval_status: isImmediate ? 'approved' : 'pending',
       visibility: isImmediate ? 'public' : 'hidden'
     })

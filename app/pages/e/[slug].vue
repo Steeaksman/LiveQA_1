@@ -19,6 +19,7 @@ interface EventContext {
   submissionsOpen: boolean
   votingOpen: boolean
   duplicateCheckStrictness: 'off' | 'low' | 'medium' | 'high'
+  anonymityMode: 'named' | 'optional' | 'always'
 }
 
 interface EventContextResponse {
@@ -38,6 +39,8 @@ interface QuestionRow {
   text: string
   voteCount: number | null
   hasVoted: boolean
+  displayName: string | null
+  attendeeType: string | null
 }
 
 interface QuestionsResponse {
@@ -195,6 +198,7 @@ async function join() {
 }
 
 const questionText = ref('')
+const askAnonymously = ref(false)
 const submitting = ref(false)
 const submitError = ref<string | null>(null)
 const submitConfirmation = ref<string | null>(null)
@@ -238,7 +242,8 @@ async function submitQuestion() {
       body: {
         eventId: context.value.id,
         token: identity.token,
-        text: questionText.value.trim()
+        text: questionText.value.trim(),
+        anonymous: askAnonymously.value
       }
     })
 
@@ -248,6 +253,7 @@ async function submitQuestion() {
     }
 
     questionText.value = ''
+    askAnonymously.value = false
     similarQuestions.value = []
     submitConfirmation.value = context.value.moderationMode === 'immediate'
       ? 'Your question was submitted!'
@@ -411,6 +417,10 @@ async function deleteQuestion(questionId: string) {
             <UFormField :label="`Ask a question (max ${context.questionMaxLength} characters)`">
               <UTextarea v-model="questionText" :maxlength="context.questionMaxLength" />
             </UFormField>
+            <div v-if="context.anonymityMode === 'optional'" class="flex items-center justify-between">
+              <span>Ask anonymously</span>
+              <USwitch v-model="askAnonymously" />
+            </div>
             <div v-if="similarQuestions.length > 0" class="flex flex-col gap-1">
               <p class="text-sm text-gray-500">
                 Questions like this have already been asked:
@@ -510,9 +520,14 @@ async function deleteQuestion(questionId: string) {
       <div class="flex flex-col gap-2">
         <UCard v-for="question in questions" :key="question.id">
           <div class="flex items-center justify-between gap-3">
-            <p class="whitespace-pre-wrap">
-              {{ question.text }}
-            </p>
+            <div>
+              <p class="whitespace-pre-wrap">
+                {{ question.text }}
+              </p>
+              <p v-if="question.displayName || question.attendeeType" class="text-sm text-gray-500">
+                {{ [question.displayName, question.attendeeType].filter(Boolean).join(' - ') }}
+              </p>
+            </div>
             <div class="flex shrink-0 items-center gap-2">
               <span v-if="question.voteCount !== null" class="text-sm text-gray-500">{{ question.voteCount }}</span>
               <UButton
