@@ -87,7 +87,7 @@ cleaned-up checkbox version before generating the project overview.
 - [x] 7. **QR code generation** - Audience QR and Moderator QR, downloadable as PNG/SVG
 - [x] 8. **Branded signage export** - QR + logo + event name + join code + instructions graphic for slides/handouts/posters
 - [x] 9. **Event templates** - save and apply reusable event configuration bundles (no attendee/Q&A data)
-- [ ] 10. **Event duplication** - copy an event's configuration only (never questions, replies, votes, attendees, reports, attachments)
+- [x] 10. **Event duplication** - copy an event's configuration only (never questions, replies, votes, attendees, reports, attachments)
 - [ ] 11. **Event branding** - logo, sponsor logo, accent/background color or image, button styling, welcome text, light/dark mode
 
 **Attendee Q&A**

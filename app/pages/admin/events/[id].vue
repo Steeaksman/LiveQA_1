@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import type { AuthenticatedProfile } from '~/composables/useAuthSession'
+
 definePageMeta({ middleware: 'admin' })
 
 interface AttendeeTypeRow {
@@ -13,6 +15,10 @@ const supabase = useSupabase()
 const loading = ref(true)
 const notFound = ref(false)
 const activeTab = ref<'details' | 'attendee-types' | 'settings' | 'qr-codes' | 'signage'>('details')
+
+const profile = ref<AuthenticatedProfile | null>(null)
+const duplicating = ref(false)
+const duplicateError = ref<string | null>(null)
 
 const name = ref('')
 const slug = ref('')
@@ -44,6 +50,8 @@ const audienceUrl = computed(() => `${location.origin}/e/${slug.value}`)
 const moderatorUrl = computed(() => `${location.origin}/m/${slug.value}`)
 
 onMounted(async () => {
+  profile.value = await getAuthenticatedProfile(supabase)
+
   const { data: event } = await supabase
     .from('events')
     .select('id, name, slug, join_code, status')
@@ -145,6 +153,90 @@ async function saveDetails() {
   }
 }
 
+async function duplicateEvent() {
+  duplicateError.value = null
+  duplicating.value = true
+
+  try {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) {
+      duplicateError.value = 'Your session expired. Please log in again.'
+      return
+    }
+
+    const [settingsResult, attendeeTypesResult] = await Promise.all([
+      supabase
+        .from('event_settings')
+        .select('question_max_length, moderation_mode, hide_vote_counts')
+        .eq('event_id', eventId)
+        .single(),
+      supabase
+        .from('attendee_types')
+        .select('label')
+        .eq('event_id', eventId)
+        .is('deleted_at', null)
+    ])
+
+    const sourceSettings = settingsResult.data
+    const sourceLabels = (attendeeTypesResult.data ?? []).map(t => t.label)
+
+    let attempt = 0
+    while (attempt < 5) {
+      attempt++
+
+      const { data: newEvent, error } = await supabase
+        .from('events')
+        .insert({
+          name: `${name.value} (Copy)`,
+          slug: slugify(name.value),
+          join_code: generateJoinCode(),
+          created_by: user.id
+        })
+        .select('id')
+        .single()
+
+      if (!error && newEvent) {
+        const { error: settingsError } = await supabase
+          .from('event_settings')
+          .insert({
+            event_id: newEvent.id,
+            question_max_length: sourceSettings?.question_max_length ?? 500,
+            moderation_mode: sourceSettings?.moderation_mode ?? 'queue',
+            hide_vote_counts: sourceSettings?.hide_vote_counts ?? false
+          })
+
+        if (settingsError) {
+          duplicateError.value = 'Something went wrong. Please try again.'
+          return
+        }
+
+        if (sourceLabels.length) {
+          const { error: typesError } = await supabase
+            .from('attendee_types')
+            .insert(sourceLabels.map(label => ({ event_id: newEvent.id, label })))
+
+          if (typesError) {
+            duplicateError.value = 'Something went wrong. Please try again.'
+            return
+          }
+        }
+
+        await navigateTo(`/admin/events/${newEvent.id}`)
+        return
+      }
+
+      if (error?.code !== '23505') {
+        duplicateError.value = 'Something went wrong. Please try again.'
+        return
+      }
+    }
+
+    duplicateError.value = 'Something went wrong. Please try again.'
+  } finally {
+    duplicating.value = false
+  }
+}
+
 async function addAttendeeType() {
   if (!newLabel.value.trim()) return
   addingLabel.value = true
@@ -231,9 +323,20 @@ async function saveSettings() {
       Event not found.
     </p>
     <div v-else>
-      <h1 class="mb-4 text-xl font-semibold">
-        {{ name }}
-      </h1>
+      <div class="mb-4 flex items-center justify-between">
+        <h1 class="text-xl font-semibold">
+          {{ name }}
+        </h1>
+        <UButton
+          v-if="profile?.role === 'administrator'"
+          size="sm"
+          variant="subtle"
+          :loading="duplicating"
+          label="Duplicate"
+          @click="duplicateEvent"
+        />
+      </div>
+      <UAlert v-if="duplicateError" color="error" variant="subtle" :title="duplicateError" class="mb-4" />
 
       <div class="mb-4 flex gap-2">
         <UButton
