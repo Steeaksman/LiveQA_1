@@ -88,7 +88,9 @@ cleaned-up checkbox version before generating the project overview.
 - [x] 8. **Branded signage export** - QR + logo + event name + join code + instructions graphic for slides/handouts/posters
 - [x] 9. **Event templates** - save and apply reusable event configuration bundles (no attendee/Q&A data)
 - [x] 10. **Event duplication** - copy an event's configuration only (never questions, replies, votes, attendees, reports, attachments)
-- [ ] 11. **Event branding** - logo, sponsor logo, accent/background color or image, button styling, welcome text, light/dark mode
+- [ ] 11. **Event branding** - logo, sponsor logo, accent/background color or image, button styling, welcome text, light/dark mode. Split into sub-items because logo/sponsor-logo upload needs a Supabase Storage bucket, upload validation, and storage policies that don't exist anywhere in this project yet (Feature 29 is the feature that builds general attachment/Storage support), while the color/text/dark-mode settings need no such infrastructure. Button styling is satisfied by the accent color once Feature 12+'s attendee UI applies it to buttons - no separate stored field.
+  - [x] 11a. **Branding: colors, text, dark mode** - accent color, background color, welcome text, and a light/dark mode preference, stored per event for later attendee-facing features to apply
+  - [ ] 11b. **Branding: logo & sponsor logo** - image upload via a new Supabase Storage bucket, with upload validation and storage policies, once that groundwork exists
 
 **Attendee Q&A**
 

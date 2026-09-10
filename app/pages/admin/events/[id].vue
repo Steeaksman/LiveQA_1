@@ -14,7 +14,7 @@ const supabase = useSupabase()
 
 const loading = ref(true)
 const notFound = ref(false)
-const activeTab = ref<'details' | 'attendee-types' | 'settings' | 'qr-codes' | 'signage'>('details')
+const activeTab = ref<'details' | 'attendee-types' | 'settings' | 'qr-codes' | 'signage' | 'branding'>('details')
 
 const profile = ref<AuthenticatedProfile | null>(null)
 const duplicating = ref(false)
@@ -46,6 +46,20 @@ const votingOpen = ref(false)
 const settingsError = ref<string | null>(null)
 const savingSettings = ref(false)
 
+const themeModeOptions = [
+  { label: 'Light', value: 'light' },
+  { label: 'Dark', value: 'dark' },
+  { label: 'Match visitor device', value: 'system' }
+]
+const accentColor = ref('')
+const backgroundColor = ref('')
+const welcomeText = ref('')
+const themeMode = ref<'light' | 'dark' | 'system'>('system')
+const accentColorError = ref<string | null>(null)
+const backgroundColorError = ref<string | null>(null)
+const brandingError = ref<string | null>(null)
+const savingBranding = ref(false)
+
 const audienceUrl = computed(() => `${location.origin}/e/${slug.value}`)
 const moderatorUrl = computed(() => `${location.origin}/m/${slug.value}`)
 
@@ -72,7 +86,7 @@ onMounted(async () => {
   const [settingsResult, attendeeTypesResult] = await Promise.all([
     supabase
       .from('event_settings')
-      .select('question_max_length, moderation_mode, hide_vote_counts')
+      .select('question_max_length, moderation_mode, hide_vote_counts, accent_color, background_color, welcome_text, theme_mode')
       .eq('event_id', eventId)
       .single(),
     supabase
@@ -86,6 +100,10 @@ onMounted(async () => {
     questionMaxLength.value = settingsResult.data.question_max_length
     moderationMode.value = settingsResult.data.moderation_mode
     hideVoteCounts.value = settingsResult.data.hide_vote_counts
+    accentColor.value = settingsResult.data.accent_color ?? ''
+    backgroundColor.value = settingsResult.data.background_color ?? ''
+    welcomeText.value = settingsResult.data.welcome_text ?? ''
+    themeMode.value = settingsResult.data.theme_mode
   }
   submissionsOpen.value = false
   votingOpen.value = false
@@ -312,6 +330,45 @@ async function saveSettings() {
     savingSettings.value = false
   }
 }
+
+async function saveBranding() {
+  brandingError.value = null
+  accentColorError.value = null
+  backgroundColorError.value = null
+
+  const trimmedAccentColor = accentColor.value.trim()
+  if (trimmedAccentColor && !isValidHexColor(trimmedAccentColor)) {
+    accentColorError.value = 'Enter a hex color like #2563EB, or leave blank.'
+    return
+  }
+
+  const trimmedBackgroundColor = backgroundColor.value.trim()
+  if (trimmedBackgroundColor && !isValidHexColor(trimmedBackgroundColor)) {
+    backgroundColorError.value = 'Enter a hex color like #2563EB, or leave blank.'
+    return
+  }
+
+  savingBranding.value = true
+
+  try {
+    const { error, data } = await supabase
+      .from('event_settings')
+      .update({
+        accent_color: trimmedAccentColor || null,
+        background_color: trimmedBackgroundColor || null,
+        welcome_text: welcomeText.value.trim() || null,
+        theme_mode: themeMode.value
+      })
+      .eq('event_id', eventId)
+      .select('event_id')
+
+    if (error || !data?.length) {
+      brandingError.value = 'Something went wrong. Please try again.'
+    }
+  } finally {
+    savingBranding.value = false
+  }
+}
 </script>
 
 <template>
@@ -363,6 +420,11 @@ async function saveSettings() {
           :variant="activeTab === 'signage' ? 'solid' : 'ghost'"
           label="Signage"
           @click="activeTab = 'signage'"
+        />
+        <UButton
+          :variant="activeTab === 'branding' ? 'solid' : 'ghost'"
+          label="Branding"
+          @click="activeTab = 'branding'"
         />
       </div>
 
@@ -432,9 +494,28 @@ async function saveSettings() {
         <QrCodeCard label="Moderator" :url="moderatorUrl" />
       </div>
 
-      <div v-else>
+      <div v-else-if="activeTab === 'signage'">
         <SignageExport :event-name="name" :url="audienceUrl" :join-code="joinCode" />
       </div>
+
+      <UCard v-else>
+        <div class="flex flex-col gap-3">
+          <UFormField label="Accent color" :error="accentColorError ?? undefined">
+            <UInput v-model="accentColor" placeholder="#2563EB" />
+          </UFormField>
+          <UFormField label="Background color" :error="backgroundColorError ?? undefined">
+            <UInput v-model="backgroundColor" placeholder="#FFFFFF" />
+          </UFormField>
+          <UFormField label="Welcome text">
+            <UTextarea v-model="welcomeText" placeholder="Welcome! Ask your question and vote for others." />
+          </UFormField>
+          <UFormField label="Theme mode">
+            <USelect v-model="themeMode" :items="themeModeOptions" value-key="value" />
+          </UFormField>
+          <UAlert v-if="brandingError" color="error" variant="subtle" :title="brandingError" />
+          <UButton :loading="savingBranding" label="Save" class="self-start" @click="saveBranding" />
+        </div>
+      </UCard>
     </div>
   </div>
 </template>
