@@ -34,6 +34,13 @@ interface JoinResponse {
   error: string | null
 }
 
+interface ReplyRow {
+  id: string
+  text: string
+  createdAt: string
+  displayName: string | null
+}
+
 interface QuestionRow {
   id: string
   text: string
@@ -42,6 +49,7 @@ interface QuestionRow {
   reported: boolean
   displayName: string | null
   attendeeType: string | null
+  replies: ReplyRow[]
 }
 
 interface QuestionsResponse {
@@ -65,6 +73,12 @@ interface VoteResponse {
 interface ReportResponse {
   success: boolean
   data: { reported: boolean } | null
+  error: string | null
+}
+
+interface SubmitReplyResponse {
+  success: boolean
+  data: { replyId: string } | null
   error: string | null
 }
 
@@ -402,6 +416,46 @@ async function reportQuestion(questionId: string) {
   }
 }
 
+const replyText = ref<Record<string, string>>({})
+const submittingReplyQuestionId = ref<string | null>(null)
+const replyError = ref<string | null>(null)
+
+async function submitReply(questionId: string) {
+  if (!context.value) return
+  const text = (replyText.value[questionId] ?? '').trim()
+  if (!text) return
+
+  replyError.value = null
+  submittingReplyQuestionId.value = questionId
+
+  try {
+    const identity = getDeviceIdentity(context.value.id)
+
+    const result = await $fetch<SubmitReplyResponse>('/api/replies', {
+      method: 'POST',
+      body: {
+        eventId: context.value.id,
+        token: identity.token,
+        questionId,
+        text
+      }
+    })
+
+    if (!result.success) {
+      replyError.value = result.error ?? 'Something went wrong. Please try again.'
+      return
+    }
+
+    replyText.value[questionId] = ''
+    await refreshQuestions()
+  } catch (err) {
+    const data = (err as { data?: SubmitReplyResponse })?.data
+    replyError.value = data?.error ?? 'Something went wrong. Please try again.'
+  } finally {
+    submittingReplyQuestionId.value = null
+  }
+}
+
 const editingQuestionId = ref<string | null>(null)
 const editText = ref('')
 const savingEdit = ref(false)
@@ -618,6 +672,7 @@ async function deleteQuestion(questionId: string) {
       </p>
       <UAlert v-if="voteError" color="error" variant="subtle" :title="voteError" class="mb-3" />
       <UAlert v-if="reportError" color="error" variant="subtle" :title="reportError" class="mb-3" />
+      <UAlert v-if="replyError" color="error" variant="subtle" :title="replyError" class="mb-3" />
       <div class="flex flex-col gap-2">
         <UCard v-for="question in questions" :key="question.id">
           <div class="flex items-center justify-between gap-3">
@@ -651,6 +706,22 @@ async function deleteQuestion(questionId: string) {
                 @click="reportQuestion(question.id)"
               />
             </div>
+          </div>
+
+          <div v-if="question.replies.length > 0" class="mt-2 flex flex-col gap-1 border-l pl-3">
+            <p v-for="reply in question.replies" :key="reply.id" class="text-sm">
+              <span class="text-gray-500">{{ reply.displayName ?? 'Someone' }}:</span> {{ reply.text }}
+            </p>
+          </div>
+
+          <div v-if="joined" class="mt-2 flex gap-2">
+            <UInput v-model="replyText[question.id]" placeholder="Write a reply" size="sm" class="flex-1" @keyup.enter="submitReply(question.id)" />
+            <UButton
+              size="sm"
+              label="Reply"
+              :loading="submittingReplyQuestionId === question.id"
+              @click="submitReply(question.id)"
+            />
           </div>
         </UCard>
         <p v-if="questions.length === 0 && searchTerm" class="text-sm text-gray-500">

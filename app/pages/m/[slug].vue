@@ -27,6 +27,15 @@ interface ModeratorSessionResponse {
 type ApprovalStatus = 'pending' | 'approved' | 'rejected'
 type Visibility = 'hidden' | 'public'
 
+interface ModerationReply {
+  id: string
+  text: string
+  createdAt: string
+  approvalStatus: ApprovalStatus
+  visibility: Visibility
+  displayName: string | null
+}
+
 interface ModerationQuestion {
   id: string
   text: string
@@ -40,6 +49,7 @@ interface ModerationQuestion {
   displayName: string | null
   attendeeType: string | null
   topicName: string | null
+  replies: ModerationReply[]
 }
 
 interface ModerationQuestionsResponse {
@@ -61,6 +71,20 @@ type ModerationAction =
 interface ModerationActionResponse {
   success: boolean
   data: { questionId: string, approvalStatus: ApprovalStatus, visibility: Visibility, answered: boolean, archived: boolean } | null
+  error: string | null
+}
+
+type ReplyAction = 'approve' | 'reject' | 'hide' | 'publish'
+
+interface ReplyActionResponse {
+  success: boolean
+  data: { replyId: string, approvalStatus: ApprovalStatus, visibility: Visibility } | null
+  error: string | null
+}
+
+interface ModeratorReplyResponse {
+  success: boolean
+  data: { replyId: string } | null
   error: string | null
 }
 
@@ -322,6 +346,78 @@ async function performAction(questionId: string, action: ModerationAction) {
     actionErrors.value = { ...actionErrors.value, [questionId]: data?.error ?? 'Something went wrong. Please try again.' }
   } finally {
     actioningQuestionId.value = null
+  }
+}
+
+function availableReplyActions(reply: ModerationReply): { action: ReplyAction, label: string }[] {
+  const actions: { action: ReplyAction, label: string }[] = []
+
+  if (reply.approvalStatus !== 'approved') actions.push({ action: 'approve', label: 'Approve' })
+  if (reply.approvalStatus !== 'rejected') actions.push({ action: 'reject', label: 'Reject' })
+  if (reply.approvalStatus === 'approved' && reply.visibility !== 'public') actions.push({ action: 'publish', label: 'Publish' })
+  if (reply.visibility !== 'hidden') actions.push({ action: 'hide', label: 'Hide' })
+
+  return actions
+}
+
+const replyActionErrors = ref<Record<string, string>>({})
+const actioningReplyId = ref<string | null>(null)
+
+async function performReplyAction(replyId: string, action: ReplyAction) {
+  if (!sessionToken.value) return
+  replyActionErrors.value = { ...replyActionErrors.value, [replyId]: '' }
+  actioningReplyId.value = replyId
+
+  try {
+    const result = await $fetch<ReplyActionResponse>(`/api/events/${slug}/moderation/replies/action`, {
+      method: 'POST',
+      body: { token: sessionToken.value, replyId, action }
+    })
+
+    if (!result.success) {
+      replyActionErrors.value = { ...replyActionErrors.value, [replyId]: result.error ?? 'Something went wrong. Please try again.' }
+      return
+    }
+
+    await loadQueue()
+  } catch (err) {
+    const data = (err as { data?: ReplyActionResponse })?.data
+    replyActionErrors.value = { ...replyActionErrors.value, [replyId]: data?.error ?? 'Something went wrong. Please try again.' }
+  } finally {
+    actioningReplyId.value = null
+  }
+}
+
+const moderatorReplyText = ref<Record<string, string>>({})
+const postingModeratorReplyQuestionId = ref<string | null>(null)
+const moderatorReplyError = ref<string | null>(null)
+
+async function postModeratorReply(questionId: string) {
+  if (!sessionToken.value) return
+  const text = (moderatorReplyText.value[questionId] ?? '').trim()
+  if (!text) return
+
+  moderatorReplyError.value = null
+  postingModeratorReplyQuestionId.value = questionId
+
+  try {
+    const result = await $fetch<ModeratorReplyResponse>(`/api/events/${slug}/moderation/replies`, {
+      method: 'POST',
+      body: { token: sessionToken.value, questionId, text }
+    })
+
+    if (!result.success) {
+      moderatorReplyError.value = result.error ?? 'Something went wrong. Please try again.'
+      return
+    }
+
+    moderatorReplyText.value[questionId] = ''
+    await loadQueue()
+  } catch (err) {
+    const data = (err as { data?: ModeratorReplyResponse })?.data
+    moderatorReplyError.value = data?.error ?? 'Something went wrong. Please try again.'
+  } finally {
+    postingModeratorReplyQuestionId.value = null
   }
 }
 
@@ -738,6 +834,37 @@ async function login() {
               :label="a.label"
               :loading="actioningQuestionId === q.id"
               @click="performAction(q.id, a.action)"
+            />
+          </div>
+
+          <div v-if="q.replies.length > 0" class="mt-2 flex flex-col gap-2 border-l pl-3">
+            <div v-for="reply in q.replies" :key="reply.id">
+              <p class="text-sm">
+                <span class="text-gray-500">{{ reply.displayName ?? 'Someone' }}:</span> {{ reply.text }}
+                <span class="text-gray-500">({{ reply.approvalStatus }} - {{ reply.visibility }})</span>
+              </p>
+              <UAlert v-if="replyActionErrors[reply.id]" color="error" variant="subtle" :title="replyActionErrors[reply.id]" class="mt-1" />
+              <div class="mt-1 flex flex-wrap gap-2">
+                <UButton
+                  v-for="a in availableReplyActions(reply)"
+                  :key="a.action"
+                  size="xs"
+                  :label="a.label"
+                  :loading="actioningReplyId === reply.id"
+                  @click="performReplyAction(reply.id, a.action)"
+                />
+              </div>
+            </div>
+          </div>
+
+          <UAlert v-if="moderatorReplyError" color="error" variant="subtle" :title="moderatorReplyError" class="mt-2" />
+          <div class="mt-2 flex gap-2">
+            <UInput v-model="moderatorReplyText[q.id]" placeholder="Reply as moderator" size="sm" class="flex-1" @keyup.enter="postModeratorReply(q.id)" />
+            <UButton
+              size="sm"
+              label="Reply"
+              :loading="postingModeratorReplyQuestionId === q.id"
+              @click="postModeratorReply(q.id)"
             />
           </div>
         </UCard>

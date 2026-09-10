@@ -66,6 +66,46 @@ export default defineEventHandler(async (event) => {
 
   const topicNameById = new Map((topicRows ?? []).map(t => [t.id, t.name]))
 
+  const questionIds = questions.map(q => q.id)
+
+  const { data: allReplies } = await supabase
+    .from('replies')
+    .select('id, question_id, text, created_at, attendee_id, approval_status, visibility')
+    .in('question_id', questionIds.length ? questionIds : [''])
+    .is('deleted_at', null)
+    .order('created_at', { ascending: true })
+
+  const replyAttendeeIds = [...new Set((allReplies ?? []).map(r => r.attendee_id).filter((id): id is string => !!id))]
+
+  const { data: replyAuthors } = await supabase
+    .from('attendees')
+    .select('id, display_name')
+    .in('id', replyAttendeeIds.length ? replyAttendeeIds : [''])
+
+  const replyAuthorNameById = new Map((replyAuthors ?? []).map(a => [a.id, a.display_name]))
+
+  const repliesByQuestionId = new Map<string, {
+    id: string
+    text: string
+    createdAt: string
+    approvalStatus: string
+    visibility: string
+    displayName: string | null
+  }[]>()
+
+  for (const r of allReplies ?? []) {
+    const list = repliesByQuestionId.get(r.question_id) ?? []
+    list.push({
+      id: r.id,
+      text: r.text,
+      createdAt: r.created_at,
+      approvalStatus: r.approval_status,
+      visibility: r.visibility,
+      displayName: r.attendee_id ? replyAuthorNameById.get(r.attendee_id) ?? null : 'Moderator'
+    })
+    repliesByQuestionId.set(r.question_id, list)
+  }
+
   const result = questions
     .map(q => {
       const submitter = submittersById.get(q.attendee_id)
@@ -83,7 +123,8 @@ export default defineEventHandler(async (event) => {
         reportCount: q.content_reports?.[0]?.count ?? 0,
         displayName: q.anonymous ? null : submitter?.display_name ?? null,
         attendeeType: (q.anonymous || !showAttendeeType) ? null : attendeeTypeLabel ?? null,
-        topicName: q.topic_id ? topicNameById.get(q.topic_id) ?? null : null
+        topicName: q.topic_id ? topicNameById.get(q.topic_id) ?? null : null,
+        replies: repliesByQuestionId.get(q.id) ?? []
       }
     })
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt))

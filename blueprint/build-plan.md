@@ -119,7 +119,9 @@ cleaned-up checkbox version before generating the project overview.
 
 **Advanced features**
 
-- [ ] 28. **Replies/comments** - optional, independently moderated threaded responses to a question, included in reports
+- [ ] 28. **Replies/comments** - optional, independently moderated threaded responses to a question, included in reports. Split into sub-items because the reply submission/moderation/display core is one reviewable branch on its own, while extending Feature 24's reporting and Feature 25's realtime to now cover replies (both explicitly deferred to "Feature 28's job" when they were built, since replies didn't exist yet) is a separate, smaller, mechanical follow-up.
+  - [x] 28a. **Reply submission, moderation & display** - attendee replies (moderated per the event's moderation mode, mirroring questions) and moderator-authored replies (auto-approved, no moderation), a moderator queue action set (approve/reject/hide/publish - no answered/archived, which replies don't have), and display on both the attendee feed and moderator queue
+  - [ ] 28b. **Reply reporting & realtime** - extend Feature 24's report mechanism and Feature 25's Realtime RLS/publication/channel to cover replies now that they exist
 - [ ] 29. **Attachments** - optional image/document uploads via Supabase Storage with configurable type/size/count limits and secure server-side validation
 - [ ] 30. **Abuse protection modes** - Open/Standard/Strict tiers covering rate limiting, blocked-term filtering, browser-token throttling, duplicate protection, temporary bans, and optional CAPTCHA
 

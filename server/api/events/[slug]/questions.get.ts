@@ -100,6 +100,37 @@ export default defineEventHandler(async (event) => {
   const submittersById = new Map((submitters ?? []).map(a => [a.id, a]))
   const attendeeTypeLabelById = new Map((attendeeTypeRows ?? []).map(t => [t.id, t.label]))
 
+  const questionIds = (questions ?? []).map(q => q.id)
+
+  const { data: publicReplies } = await supabase
+    .from('replies')
+    .select('id, question_id, text, created_at, attendee_id')
+    .in('question_id', questionIds.length ? questionIds : [''])
+    .eq('visibility', 'public')
+    .is('deleted_at', null)
+    .order('created_at', { ascending: true })
+
+  const replyAttendeeIds = [...new Set((publicReplies ?? []).map(r => r.attendee_id).filter((id): id is string => !!id))]
+
+  const { data: replyAuthors } = await supabase
+    .from('attendees')
+    .select('id, display_name')
+    .in('id', replyAttendeeIds.length ? replyAttendeeIds : [''])
+
+  const replyAuthorNameById = new Map((replyAuthors ?? []).map(a => [a.id, a.display_name]))
+
+  const repliesByQuestionId = new Map<string, { id: string, text: string, createdAt: string, displayName: string | null }[]>()
+  for (const r of publicReplies ?? []) {
+    const list = repliesByQuestionId.get(r.question_id) ?? []
+    list.push({
+      id: r.id,
+      text: r.text,
+      createdAt: r.created_at,
+      displayName: r.attendee_id ? replyAuthorNameById.get(r.attendee_id) ?? null : 'Moderator'
+    })
+    repliesByQuestionId.set(r.question_id, list)
+  }
+
   const rows = (questions ?? []).map(q => ({
     id: q.id,
     text: q.text,
@@ -128,7 +159,8 @@ export default defineEventHandler(async (event) => {
       hasVoted: r.hasVoted,
       reported: r.reported,
       displayName: r.anonymous ? null : submitter?.display_name ?? null,
-      attendeeType: (r.anonymous || !showAttendeeType) ? null : attendeeTypeLabel ?? null
+      attendeeType: (r.anonymous || !showAttendeeType) ? null : attendeeTypeLabel ?? null,
+      replies: repliesByQuestionId.get(r.id) ?? []
     }
   })
 
