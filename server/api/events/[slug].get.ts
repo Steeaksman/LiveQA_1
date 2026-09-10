@@ -23,7 +23,7 @@ export default defineEventHandler(async (event) => {
   const [settingsResult, attendeeTypesResult] = await Promise.all([
     supabase
       .from('event_settings')
-      .select('welcome_text, accent_color, background_color, theme_mode, require_attendee_name, require_attendee_type, moderation_mode, question_max_length')
+      .select('welcome_text, accent_color, background_color, theme_mode, require_attendee_name, require_attendee_type, moderation_mode, question_max_length, duplicate_check_strictness')
       .eq('event_id', found.id)
       .single(),
     supabase
@@ -50,7 +50,8 @@ export default defineEventHandler(async (event) => {
       moderationMode: settings?.moderation_mode ?? 'queue',
       questionMaxLength: settings?.question_max_length ?? 500,
       submissionsOpen: found.submissions_open,
-      votingOpen: found.voting_open
+      votingOpen: found.voting_open,
+      duplicateCheckStrictness: settings?.duplicate_check_strictness ?? 'off'
     },
     error: null
   }

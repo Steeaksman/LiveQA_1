@@ -45,6 +45,13 @@ const submissionsOpen = ref(false)
 const votingOpen = ref(false)
 const requireAttendeeName = ref(false)
 const requireAttendeeType = ref(false)
+const duplicateCheckOptions = [
+  { label: 'Off', value: 'off' },
+  { label: 'Low', value: 'low' },
+  { label: 'Medium', value: 'medium' },
+  { label: 'High', value: 'high' }
+]
+const duplicateCheckStrictness = ref<'off' | 'low' | 'medium' | 'high'>('off')
 const settingsError = ref<string | null>(null)
 const savingSettings = ref(false)
 
@@ -88,7 +95,7 @@ onMounted(async () => {
   const [settingsResult, attendeeTypesResult] = await Promise.all([
     supabase
       .from('event_settings')
-      .select('question_max_length, moderation_mode, hide_vote_counts, accent_color, background_color, welcome_text, theme_mode, require_attendee_name, require_attendee_type')
+      .select('question_max_length, moderation_mode, hide_vote_counts, accent_color, background_color, welcome_text, theme_mode, require_attendee_name, require_attendee_type, duplicate_check_strictness')
       .eq('event_id', eventId)
       .single(),
     supabase
@@ -108,6 +115,7 @@ onMounted(async () => {
     themeMode.value = settingsResult.data.theme_mode
     requireAttendeeName.value = settingsResult.data.require_attendee_name
     requireAttendeeType.value = settingsResult.data.require_attendee_type
+    duplicateCheckStrictness.value = settingsResult.data.duplicate_check_strictness
   }
   submissionsOpen.value = false
   votingOpen.value = false
@@ -315,7 +323,8 @@ async function saveSettings() {
           moderation_mode: moderationMode.value,
           hide_vote_counts: hideVoteCounts.value,
           require_attendee_name: requireAttendeeName.value,
-          require_attendee_type: requireAttendeeType.value
+          require_attendee_type: requireAttendeeType.value,
+          duplicate_check_strictness: duplicateCheckStrictness.value
         })
         .eq('event_id', eventId)
         .select('event_id'),
@@ -498,6 +507,9 @@ async function saveBranding() {
             <span>Require attendee type</span>
             <USwitch v-model="requireAttendeeType" />
           </div>
+          <UFormField label="Duplicate check strictness">
+            <USelect v-model="duplicateCheckStrictness" :items="duplicateCheckOptions" value-key="value" />
+          </UFormField>
           <UAlert v-if="settingsError" color="error" variant="subtle" :title="settingsError" />
           <UButton :loading="savingSettings" label="Save" class="self-start" @click="saveSettings" />
         </div>

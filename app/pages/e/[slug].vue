@@ -18,6 +18,7 @@ interface EventContext {
   questionMaxLength: number
   submissionsOpen: boolean
   votingOpen: boolean
+  duplicateCheckStrictness: 'off' | 'low' | 'medium' | 'high'
 }
 
 interface EventContextResponse {
@@ -54,6 +55,18 @@ interface SubmitQuestionResponse {
 interface VoteResponse {
   success: boolean
   data: { voted: boolean } | null
+  error: string | null
+}
+
+interface SimilarQuestion {
+  id: string
+  text: string
+  score: number
+}
+
+interface DuplicateQuestionsResponse {
+  success: boolean
+  data: { questions: SimilarQuestion[] } | null
   error: string | null
 }
 
@@ -144,6 +157,25 @@ const submitting = ref(false)
 const submitError = ref<string | null>(null)
 const submitConfirmation = ref<string | null>(null)
 
+const similarQuestions = ref<SimilarQuestion[]>([])
+let duplicateCheckTimer: ReturnType<typeof setTimeout> | undefined
+
+watch(questionText, (text) => {
+  if (duplicateCheckTimer) clearTimeout(duplicateCheckTimer)
+
+  if (!context.value || context.value.duplicateCheckStrictness === 'off' || text.trim().length < 5) {
+    similarQuestions.value = []
+    return
+  }
+
+  duplicateCheckTimer = setTimeout(async () => {
+    const result = await $fetch<DuplicateQuestionsResponse>(`/api/events/${slug}/duplicate-questions`, {
+      query: { text: text.trim() }
+    })
+    similarQuestions.value = result.data?.questions ?? []
+  }, 400)
+})
+
 async function submitQuestion() {
   if (!context.value) return
   submitError.value = null
@@ -174,6 +206,7 @@ async function submitQuestion() {
     }
 
     questionText.value = ''
+    similarQuestions.value = []
     submitConfirmation.value = context.value.moderationMode === 'immediate'
       ? 'Your question was submitted!'
       : 'Your question was submitted and will appear once approved.'
@@ -248,6 +281,14 @@ async function upvote(questionId: string) {
             <UFormField :label="`Ask a question (max ${context.questionMaxLength} characters)`">
               <UTextarea v-model="questionText" :maxlength="context.questionMaxLength" />
             </UFormField>
+            <div v-if="similarQuestions.length > 0" class="flex flex-col gap-1">
+              <p class="text-sm text-gray-500">
+                Questions like this have already been asked:
+              </p>
+              <p v-for="similar in similarQuestions" :key="similar.id" class="text-sm text-gray-500">
+                "{{ similar.text }}"
+              </p>
+            </div>
             <UAlert v-if="submitError" color="error" variant="subtle" :title="submitError" />
             <UAlert v-if="submitConfirmation" color="success" variant="subtle" :title="submitConfirmation" />
             <UButton :loading="submitting" label="Submit" class="self-start" @click="submitQuestion" />
