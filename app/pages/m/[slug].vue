@@ -270,6 +270,7 @@ onMounted(async () => {
         sessionToken.value = stored.sessionToken
         authenticated.value = true
         await Promise.all([loadQueue(), loadTopics()])
+        initializeNotifyBaseline()
       } else {
         clearStoredModeratorSession(context.value.id)
       }
@@ -380,6 +381,113 @@ function archiveAllUnanswered() {
   runBulkAction('archive', ids)
 }
 
+const pendingCount = computed(() => questions.value.filter(q => q.approvalStatus === 'pending' && !q.archived).length)
+
+const notifySound = ref(false)
+const notifyBrowser = ref(false)
+const notificationSupported = ref(false)
+const browserNotifyError = ref<string | null>(null)
+
+onMounted(() => {
+  const prefs = getNotifyPrefs()
+  notifySound.value = prefs.sound
+  notifyBrowser.value = prefs.browser
+  notificationSupported.value = typeof Notification !== 'undefined'
+})
+
+function toggleSound(value: boolean) {
+  notifySound.value = value
+  setNotifyPrefs({ sound: value, browser: notifyBrowser.value })
+}
+
+async function toggleBrowserNotify(value: boolean) {
+  browserNotifyError.value = null
+
+  if (!value) {
+    notifyBrowser.value = false
+    setNotifyPrefs({ sound: notifySound.value, browser: false })
+    return
+  }
+
+  if (!notificationSupported.value) return
+
+  const permission = await Notification.requestPermission()
+
+  if (permission === 'granted') {
+    notifyBrowser.value = true
+    setNotifyPrefs({ sound: notifySound.value, browser: true })
+  } else {
+    notifyBrowser.value = false
+    browserNotifyError.value = 'Browser notifications were blocked. Enable them in your browser\'s site settings to use this.'
+  }
+}
+
+let pollTimer: ReturnType<typeof setInterval> | undefined
+let notifyBaseline: Set<string> | null = null
+
+function currentPendingIds(): Set<string> {
+  return new Set(questions.value.filter(q => q.approvalStatus === 'pending' && !q.archived).map(q => q.id))
+}
+
+function initializeNotifyBaseline() {
+  notifyBaseline = currentPendingIds()
+}
+
+function playNotificationSound() {
+  try {
+    type AudioContextConstructor = typeof AudioContext
+    const AudioContextClass: AudioContextConstructor = window.AudioContext
+      ?? (window as unknown as { webkitAudioContext: AudioContextConstructor }).webkitAudioContext
+    const ctx = new AudioContextClass()
+    const oscillator = ctx.createOscillator()
+    const gain = ctx.createGain()
+    oscillator.type = 'sine'
+    oscillator.frequency.value = 880
+    gain.gain.value = 0.2
+    oscillator.connect(gain)
+    gain.connect(ctx.destination)
+    oscillator.start()
+    oscillator.stop(ctx.currentTime + 0.2)
+  } catch {
+    // Sound is a non-critical enhancement; ignore failures.
+  }
+}
+
+async function pollForNewArrivals() {
+  await loadQueue()
+
+  const current = currentPendingIds()
+
+  if (notifyBaseline === null) {
+    notifyBaseline = current
+    return
+  }
+
+  const newIds = [...current].filter(id => !notifyBaseline!.has(id))
+  notifyBaseline = current
+
+  if (newIds.length === 0) return
+
+  if (notifySound.value) playNotificationSound()
+
+  if (notifyBrowser.value && notificationSupported.value && Notification.permission === 'granted') {
+    new Notification(newIds.length === 1 ? '1 new question' : `${newIds.length} new questions`)
+  }
+}
+
+watch(authenticated, (value) => {
+  if (value) {
+    pollTimer = setInterval(pollForNewArrivals, 15000)
+  } else if (pollTimer) {
+    clearInterval(pollTimer)
+    pollTimer = undefined
+  }
+})
+
+onUnmounted(() => {
+  if (pollTimer) clearInterval(pollTimer)
+})
+
 async function updateControl(field: 'submissionsOpen' | 'votingOpen', value: boolean) {
   if (!sessionToken.value) return
   controlsError.value = null
@@ -430,6 +538,7 @@ async function login() {
     sessionToken.value = result.data.sessionToken
     authenticated.value = true
     await Promise.all([loadQueue(), loadTopics()])
+    initializeNotifyBaseline()
   } catch (err) {
     const data = (err as { data?: ModeratorLoginResponse })?.data
     loginError.value = data?.error ?? 'Something went wrong. Please try again.'
@@ -451,6 +560,25 @@ async function login() {
       <h1 class="mb-4 text-xl font-semibold">
         {{ context?.name }}
       </h1>
+
+      <p class="mb-4 font-semibold">
+        {{ pendingCount === 0 ? 'No pending questions' : `${pendingCount} pending` }}
+      </p>
+
+      <div class="mb-4 flex flex-col gap-2">
+        <div class="flex items-center justify-between">
+          <span>Sound alert for new questions</span>
+          <USwitch :model-value="notifySound" @update:model-value="toggleSound" />
+        </div>
+        <div class="flex items-center justify-between">
+          <span>Browser notification for new questions</span>
+          <USwitch :model-value="notifyBrowser" :disabled="!notificationSupported" @update:model-value="toggleBrowserNotify" />
+        </div>
+        <p v-if="!notificationSupported" class="text-sm text-gray-500">
+          Not supported in this browser.
+        </p>
+        <UAlert v-if="browserNotifyError" color="error" variant="subtle" :title="browserNotifyError" />
+      </div>
 
       <div class="mb-4 flex flex-col gap-2">
         <div class="flex items-center justify-between">
