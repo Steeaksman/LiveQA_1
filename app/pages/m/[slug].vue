@@ -66,6 +66,23 @@ interface EventControlsResponse {
   error: string | null
 }
 
+interface BulkActionResponse {
+  success: boolean
+  data: { updatedCount: number, skippedCount: number } | null
+  error: string | null
+}
+
+const ACTION_LABELS: Record<ModerationAction, string> = {
+  approve: 'Approve',
+  reject: 'Reject',
+  hide: 'Hide',
+  publish: 'Publish',
+  mark_answered: 'Mark answered',
+  unmark_answered: 'Unmark answered',
+  archive: 'Archive',
+  unarchive: 'Unarchive'
+}
+
 const route = useRoute()
 const slug = route.params.slug as string
 
@@ -185,6 +202,65 @@ async function performAction(questionId: string, action: ModerationAction) {
   }
 }
 
+const selectedIds = ref<Set<string>>(new Set())
+const bulkApplying = ref(false)
+const bulkError = ref<string | null>(null)
+const bulkSummary = ref<string | null>(null)
+
+const allSelected = computed(() => questions.value.length > 0 && selectedIds.value.size === questions.value.length)
+
+function toggleSelected(id: string, checked: boolean) {
+  const next = new Set(selectedIds.value)
+  if (checked) next.add(id)
+  else next.delete(id)
+  selectedIds.value = next
+}
+
+function toggleSelectAll(checked: boolean) {
+  selectedIds.value = checked ? new Set(questions.value.map(q => q.id)) : new Set()
+}
+
+async function runBulkAction(action: ModerationAction, questionIds: string[]) {
+  if (!sessionToken.value || questionIds.length === 0) return
+  bulkError.value = null
+  bulkSummary.value = null
+  bulkApplying.value = true
+
+  try {
+    const result = await $fetch<BulkActionResponse>(`/api/events/${slug}/moderation/questions/bulk-action`, {
+      method: 'POST',
+      body: { token: sessionToken.value, questionIds, action }
+    })
+
+    if (!result.success || !result.data) {
+      bulkError.value = result.error ?? 'Something went wrong. Please try again.'
+      return
+    }
+
+    bulkSummary.value = `Applied to ${result.data.updatedCount} of ${questionIds.length} selected.`
+    selectedIds.value = new Set()
+    await loadQueue()
+  } catch (err) {
+    const data = (err as { data?: BulkActionResponse })?.data
+    bulkError.value = data?.error ?? 'Something went wrong. Please try again.'
+  } finally {
+    bulkApplying.value = false
+  }
+}
+
+function performBulkAction(action: ModerationAction) {
+  runBulkAction(action, [...selectedIds.value])
+}
+
+const unansweredCount = computed(() => questions.value.filter(q => !q.answered && !q.archived).length)
+
+function archiveAllUnanswered() {
+  const ids = questions.value.filter(q => !q.answered && !q.archived).map(q => q.id)
+  if (ids.length === 0) return
+  if (!window.confirm(`Archive ${ids.length} unanswered questions? You can undo this by unarchiving them individually.`)) return
+  runBulkAction('archive', ids)
+}
+
 async function updateControl(field: 'submissionsOpen' | 'votingOpen', value: boolean) {
   if (!sessionToken.value) return
   controlsError.value = null
@@ -269,17 +345,50 @@ async function login() {
         <UAlert v-if="controlsError" color="error" variant="subtle" :title="controlsError" />
       </div>
 
+      <UButton
+        label="Archive All Unanswered"
+        color="error"
+        variant="subtle"
+        class="mb-4"
+        :disabled="unansweredCount === 0"
+        :loading="bulkApplying"
+        @click="archiveAllUnanswered"
+      />
+
       <UAlert v-if="queueError" color="error" variant="subtle" :title="queueError" class="mb-4" />
 
       <p v-if="!loadingQueue && questions.length === 0" class="text-sm text-gray-500">
         No questions yet.
       </p>
 
+      <div v-if="questions.length > 0" class="mb-2 flex items-center gap-2">
+        <UCheckbox :model-value="allSelected" @update:model-value="toggleSelectAll" />
+        <span class="text-sm text-gray-500">Select all</span>
+      </div>
+
+      <div v-if="selectedIds.size > 0" class="mb-4 flex flex-col gap-2">
+        <div class="flex flex-wrap gap-2">
+          <UButton
+            v-for="(label, action) in ACTION_LABELS"
+            :key="action"
+            size="sm"
+            :label="label"
+            :loading="bulkApplying"
+            @click="performBulkAction(action as ModerationAction)"
+          />
+        </div>
+        <UAlert v-if="bulkError" color="error" variant="subtle" :title="bulkError" />
+        <UAlert v-if="bulkSummary" color="success" variant="subtle" :title="bulkSummary" />
+      </div>
+
       <div class="flex flex-col gap-3">
         <UCard v-for="q in questions" :key="q.id">
-          <p class="whitespace-pre-wrap">
-            {{ q.text }}
-          </p>
+          <div class="flex items-start gap-2">
+            <UCheckbox :model-value="selectedIds.has(q.id)" @update:model-value="(checked) => toggleSelected(q.id, !!checked)" />
+            <p class="whitespace-pre-wrap">
+              {{ q.text }}
+            </p>
+          </div>
           <p v-if="q.displayName || q.attendeeType" class="text-sm text-gray-500">
             {{ [q.displayName, q.attendeeType].filter(Boolean).join(' - ') }}
           </p>
