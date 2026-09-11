@@ -5,20 +5,30 @@ const QR_SIZE = 600
 const NAME_MAX_FONT_SIZE = 72
 const NAME_MIN_FONT_SIZE = 32
 const NAME_FONT_STEP = 4
+const LOGO_MAX_WIDTH = 200
+const LOGO_MAX_HEIGHT = 160
+const LOGO_SPACING = 40
 
 export interface SignageInput {
   eventName: string
   joinCode: string
   qrPngDataUrl: string
+  logoPngUrl?: string | null
 }
 
-function loadImage(dataUrl: string): Promise<HTMLImageElement> {
+function loadImage(src: string, crossOrigin?: 'anonymous'): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const image = new Image()
+    if (crossOrigin) image.crossOrigin = crossOrigin
     image.onload = () => resolve(image)
-    image.onerror = () => reject(new Error('Could not load the QR code image.'))
-    image.src = dataUrl
+    image.onerror = () => reject(new Error('Could not load the image.'))
+    image.src = src
   })
+}
+
+function fitWithinBox(width: number, height: number, maxWidth: number, maxHeight: number): { width: number, height: number } {
+  const scale = Math.min(maxWidth / width, maxHeight / height, 1)
+  return { width: width * scale, height: height * scale }
 }
 
 function wrapText(context: CanvasRenderingContext2D, text: string, maxWidth: number): string[] {
@@ -59,6 +69,15 @@ function fitEventName(context: CanvasRenderingContext2D, eventName: string, maxW
 export async function generateSignagePngDataUrl(input: SignageInput): Promise<string> {
   const qrImage = await loadImage(input.qrPngDataUrl)
 
+  let logoImage: HTMLImageElement | null = null
+  if (input.logoPngUrl) {
+    try {
+      logoImage = await loadImage(input.logoPngUrl, 'anonymous')
+    } catch {
+      logoImage = null
+    }
+  }
+
   const canvas = document.createElement('canvas')
   canvas.width = CANVAS_WIDTH
   canvas.height = CANVAS_HEIGHT
@@ -70,13 +89,20 @@ export async function generateSignagePngDataUrl(input: SignageInput): Promise<st
   context.textAlign = 'center'
   context.fillStyle = '#111111'
 
+  let nameStartY = MARGIN
+  if (logoImage) {
+    const { width: logoWidth, height: logoHeight } = fitWithinBox(logoImage.naturalWidth, logoImage.naturalHeight, LOGO_MAX_WIDTH, LOGO_MAX_HEIGHT)
+    context.drawImage(logoImage, (CANVAS_WIDTH - logoWidth) / 2, MARGIN, logoWidth, logoHeight)
+    nameStartY = MARGIN + logoHeight + LOGO_SPACING
+  }
+
   const maxTextWidth = CANVAS_WIDTH - MARGIN * 2
   const { text: fittedName, fontSize: nameFontSize } = fitEventName(context, input.eventName, maxTextWidth)
   context.font = `bold ${nameFontSize}px sans-serif`
-  context.fillText(fittedName, CANVAS_WIDTH / 2, MARGIN + nameFontSize)
+  context.fillText(fittedName, CANVAS_WIDTH / 2, nameStartY + nameFontSize)
 
   const qrX = (CANVAS_WIDTH - QR_SIZE) / 2
-  const qrY = MARGIN + nameFontSize + 60
+  const qrY = nameStartY + nameFontSize + 60
   context.drawImage(qrImage, qrX, qrY, QR_SIZE, QR_SIZE)
 
   context.font = '48px sans-serif'

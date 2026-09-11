@@ -85,6 +85,13 @@ const backgroundColorError = ref<string | null>(null)
 const brandingError = ref<string | null>(null)
 const savingBranding = ref(false)
 
+const logoUrl = ref<string | null>(null)
+const sponsorLogoUrl = ref<string | null>(null)
+const selectedLogoFiles = ref<{ logo: File | null, sponsor_logo: File | null }>({ logo: null, sponsor_logo: null })
+const uploadingSlot = ref<'logo' | 'sponsor_logo' | null>(null)
+const removingSlot = ref<'logo' | 'sponsor_logo' | null>(null)
+const logoUploadError = ref<string | null>(null)
+
 const audienceUrl = computed(() => `${location.origin}/e/${slug.value}`)
 const moderatorUrl = computed(() => `${location.origin}/m/${slug.value}`)
 
@@ -154,6 +161,8 @@ onMounted(async () => {
 
   attendeeTypes.value = attendeeTypesResult.data ?? []
   loading.value = false
+
+  fetchBrandingLogos()
 })
 
 async function saveDetails() {
@@ -468,6 +477,125 @@ async function saveBranding() {
     savingBranding.value = false
   }
 }
+
+interface BrandingLogoGetResponse {
+  success: boolean
+  data: { logoUrl: string | null, sponsorLogoUrl: string | null } | null
+  error: string | null
+}
+
+interface BrandingLogoPostResponse {
+  success: boolean
+  data: { url: string | null } | null
+  error: string | null
+}
+
+interface BrandingLogoDeleteResponse {
+  success: boolean
+  data: null
+  error: string | null
+}
+
+async function fetchBrandingLogos() {
+  const { data: { session } } = await supabase.auth.getSession()
+  if (!session) return
+
+  try {
+    const response = await $fetch<BrandingLogoGetResponse>(`/api/admin/events/${eventId}/branding-logo`, {
+      headers: { Authorization: `Bearer ${session.access_token}` }
+    })
+
+    if (response.success && response.data) {
+      logoUrl.value = response.data.logoUrl
+      sponsorLogoUrl.value = response.data.sponsorLogoUrl
+    }
+  } catch {
+    // Preview stays empty; the Branding tab's upload/remove controls remain usable.
+  }
+}
+
+function onLogoFileSelected(slot: 'logo' | 'sponsor_logo', e: Event) {
+  const input = e.target as HTMLInputElement
+  selectedLogoFiles.value[slot] = input.files?.[0] ?? null
+}
+
+async function uploadBrandingLogo(slot: 'logo' | 'sponsor_logo') {
+  const file = selectedLogoFiles.value[slot]
+  if (!file) return
+
+  logoUploadError.value = null
+  uploadingSlot.value = slot
+
+  try {
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session) {
+      logoUploadError.value = 'Your session expired. Please log in again.'
+      return
+    }
+
+    const formData = new FormData()
+    formData.append('slot', slot)
+    formData.append('file', file)
+
+    const response = await $fetch<BrandingLogoPostResponse>(`/api/admin/events/${eventId}/branding-logo`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${session.access_token}` },
+      body: formData
+    })
+
+    if (!response.success) {
+      logoUploadError.value = response.error ?? 'Something went wrong. Please try again.'
+      return
+    }
+
+    if (slot === 'logo') {
+      logoUrl.value = response.data?.url ?? null
+    } else {
+      sponsorLogoUrl.value = response.data?.url ?? null
+    }
+    selectedLogoFiles.value[slot] = null
+  } catch (err) {
+    const data = (err as { data?: BrandingLogoPostResponse })?.data
+    logoUploadError.value = data?.error ?? 'Something went wrong. Please try again.'
+  } finally {
+    uploadingSlot.value = null
+  }
+}
+
+async function removeBrandingLogo(slot: 'logo' | 'sponsor_logo') {
+  logoUploadError.value = null
+  removingSlot.value = slot
+
+  try {
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session) {
+      logoUploadError.value = 'Your session expired. Please log in again.'
+      return
+    }
+
+    const response = await $fetch<BrandingLogoDeleteResponse>(`/api/admin/events/${eventId}/branding-logo`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${session.access_token}` },
+      body: { slot }
+    })
+
+    if (!response.success) {
+      logoUploadError.value = response.error ?? 'Something went wrong. Please try again.'
+      return
+    }
+
+    if (slot === 'logo') {
+      logoUrl.value = null
+    } else {
+      sponsorLogoUrl.value = null
+    }
+  } catch (err) {
+    const data = (err as { data?: BrandingLogoDeleteResponse })?.data
+    logoUploadError.value = data?.error ?? 'Something went wrong. Please try again.'
+  } finally {
+    removingSlot.value = null
+  }
+}
 </script>
 
 <template>
@@ -631,7 +759,7 @@ async function saveBranding() {
       </div>
 
       <div v-else-if="activeTab === 'signage'">
-        <SignageExport :event-name="name" :url="audienceUrl" :join-code="joinCode" />
+        <SignageExport :event-name="name" :url="audienceUrl" :join-code="joinCode" :logo-url="logoUrl" />
       </div>
 
       <UCard v-else>
@@ -650,6 +778,62 @@ async function saveBranding() {
           </UFormField>
           <UAlert v-if="brandingError" color="error" variant="subtle" :title="brandingError" />
           <UButton :loading="savingBranding" label="Save" class="self-start" @click="saveBranding" />
+
+          <UAlert v-if="logoUploadError" color="error" variant="subtle" :title="logoUploadError" />
+
+          <div class="flex flex-col gap-2 border-t pt-3">
+            <span class="font-medium">Logo</span>
+            <img v-if="logoUrl" :src="logoUrl" alt="Event logo" class="max-h-24 max-w-xs">
+            <p v-else class="text-sm text-gray-500">
+              No logo set.
+            </p>
+            <input type="file" accept="image/jpeg,image/png,image/gif,image/webp" @change="onLogoFileSelected('logo', $event)">
+            <div class="flex gap-2">
+              <UButton
+                size="sm"
+                :loading="uploadingSlot === 'logo'"
+                :disabled="!selectedLogoFiles.logo"
+                label="Upload"
+                @click="uploadBrandingLogo('logo')"
+              />
+              <UButton
+                v-if="logoUrl"
+                size="sm"
+                color="error"
+                variant="ghost"
+                :loading="removingSlot === 'logo'"
+                label="Remove"
+                @click="removeBrandingLogo('logo')"
+              />
+            </div>
+          </div>
+
+          <div class="flex flex-col gap-2 border-t pt-3">
+            <span class="font-medium">Sponsor logo</span>
+            <img v-if="sponsorLogoUrl" :src="sponsorLogoUrl" alt="Sponsor logo" class="max-h-24 max-w-xs">
+            <p v-else class="text-sm text-gray-500">
+              No logo set.
+            </p>
+            <input type="file" accept="image/jpeg,image/png,image/gif,image/webp" @change="onLogoFileSelected('sponsor_logo', $event)">
+            <div class="flex gap-2">
+              <UButton
+                size="sm"
+                :loading="uploadingSlot === 'sponsor_logo'"
+                :disabled="!selectedLogoFiles.sponsor_logo"
+                label="Upload"
+                @click="uploadBrandingLogo('sponsor_logo')"
+              />
+              <UButton
+                v-if="sponsorLogoUrl"
+                size="sm"
+                color="error"
+                variant="ghost"
+                :loading="removingSlot === 'sponsor_logo'"
+                label="Remove"
+                @click="removeBrandingLogo('sponsor_logo')"
+              />
+            </div>
+          </div>
         </div>
       </UCard>
     </div>

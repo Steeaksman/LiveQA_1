@@ -3,6 +3,7 @@ const props = defineProps<{
   eventName: string
   url: string
   joinCode: string
+  logoUrl?: string | null
 }>()
 
 const pngDataUrl = ref('')
@@ -17,14 +18,15 @@ async function regenerate() {
     pngDataUrl.value = await generateSignagePngDataUrl({
       eventName: props.eventName,
       joinCode: props.joinCode,
-      qrPngDataUrl
+      qrPngDataUrl,
+      logoPngUrl: props.logoUrl
     })
   } catch {
     generationError.value = 'Could not generate the signage graphic. Please try again.'
   }
 }
 
-watch([() => props.eventName, () => props.url, () => props.joinCode], regenerate, { immediate: true })
+watch([() => props.eventName, () => props.url, () => props.joinCode, () => props.logoUrl], regenerate, { immediate: true })
 
 function downloadPng() {
   if (!pngDataUrl.value) return
