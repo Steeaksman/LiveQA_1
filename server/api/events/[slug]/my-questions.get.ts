@@ -51,6 +51,34 @@ export default defineEventHandler(async (event) => {
     .is('deleted_at', null)
     .order('created_at', { ascending: false })
 
+  const questionIds = (questions ?? []).map(q => q.id)
+
+  const { data: attachments } = await supabase
+    .from('attachments')
+    .select('id, question_id, storage_path, mime_type, size_bytes')
+    .in('question_id', questionIds.length ? questionIds : [''])
+    .is('deleted_at', null)
+    .order('created_at', { ascending: true })
+
+  const paths = (attachments ?? []).map(a => a.storage_path)
+  const { data: signedUrls } = paths.length
+    ? await supabase.storage.from('question-attachments').createSignedUrls(paths, 3600)
+    : { data: [] }
+
+  const signedUrlByPath = new Map((signedUrls ?? []).map(s => [s.path, s.signedUrl]))
+
+  const attachmentsByQuestionId = new Map<string, { id: string, mimeType: string, sizeBytes: number, viewUrl: string | null }[]>()
+  for (const a of attachments ?? []) {
+    const list = attachmentsByQuestionId.get(a.question_id) ?? []
+    list.push({
+      id: a.id,
+      mimeType: a.mime_type,
+      sizeBytes: a.size_bytes,
+      viewUrl: signedUrlByPath.get(a.storage_path) ?? null
+    })
+    attachmentsByQuestionId.set(a.question_id, list)
+  }
+
   const now = Date.now()
 
   const result = (questions ?? []).map(q => {
@@ -62,7 +90,8 @@ export default defineEventHandler(async (event) => {
       text: q.text,
       approvalStatus: q.approval_status,
       visibility: q.visibility,
-      canModify
+      canModify,
+      attachments: attachmentsByQuestionId.get(q.id) ?? []
     }
   })
 

@@ -20,6 +20,8 @@ interface EventContext {
   votingOpen: boolean
   duplicateCheckStrictness: 'off' | 'low' | 'medium' | 'high'
   anonymityMode: 'named' | 'optional' | 'always'
+  attachmentMaxCount: number
+  attachmentMaxSizeBytes: number
 }
 
 interface EventContextResponse {
@@ -95,17 +97,31 @@ interface DuplicateQuestionsResponse {
   error: string | null
 }
 
+interface AttachmentRow {
+  id: string
+  mimeType: string
+  sizeBytes: number
+  viewUrl: string | null
+}
+
 interface MyQuestionRow {
   id: string
   text: string
   approvalStatus: 'pending' | 'approved' | 'rejected'
   visibility: 'hidden' | 'public'
   canModify: boolean
+  attachments: AttachmentRow[]
 }
 
 interface MyQuestionsResponse {
   success: boolean
   data: { questions: MyQuestionRow[] } | null
+  error: string | null
+}
+
+interface UploadAttachmentResponse {
+  success: boolean
+  data: { attachmentId: string } | null
   error: string | null
 }
 
@@ -581,6 +597,51 @@ async function deleteQuestion(questionId: string) {
     deletingQuestionId.value = null
   }
 }
+
+const selectedFiles = ref<Record<string, File | null>>({})
+const uploadingQuestionId = ref<string | null>(null)
+const uploadError = ref<string | null>(null)
+
+function onFileSelected(questionId: string, e: Event) {
+  const input = e.target as HTMLInputElement
+  selectedFiles.value[questionId] = input.files?.[0] ?? null
+}
+
+async function uploadAttachment(questionId: string) {
+  if (!context.value) return
+  const file = selectedFiles.value[questionId]
+  if (!file) return
+
+  uploadError.value = null
+  uploadingQuestionId.value = questionId
+
+  try {
+    const identity = getDeviceIdentity(context.value.id)
+    const formData = new FormData()
+    formData.append('eventId', context.value.id)
+    formData.append('token', identity.token)
+    formData.append('questionId', questionId)
+    formData.append('file', file)
+
+    const result = await $fetch<UploadAttachmentResponse>('/api/attachments', {
+      method: 'POST',
+      body: formData
+    })
+
+    if (!result.success) {
+      uploadError.value = result.error ?? 'Something went wrong. Please try again.'
+      return
+    }
+
+    selectedFiles.value[questionId] = null
+    await refreshMyQuestions()
+  } catch (err) {
+    const data = (err as { data?: UploadAttachmentResponse })?.data
+    uploadError.value = data?.error ?? 'Something went wrong. Please try again.'
+  } finally {
+    uploadingQuestionId.value = null
+  }
+}
 </script>
 
 <template>
@@ -655,6 +716,7 @@ async function deleteQuestion(questionId: string) {
         </h2>
         <UAlert v-if="editError" color="error" variant="subtle" :title="editError" class="mb-3" />
         <UAlert v-if="deleteError" color="error" variant="subtle" :title="deleteError" class="mb-3" />
+        <UAlert v-if="uploadError" color="error" variant="subtle" :title="uploadError" class="mb-3" />
         <div class="flex flex-col gap-2">
           <UCard v-for="question in myQuestions" :key="question.id">
             <div v-if="editingQuestionId === question.id" class="flex flex-col gap-2">
@@ -684,6 +746,27 @@ async function deleteQuestion(questionId: string) {
                   @click="deleteQuestion(question.id)"
                 />
               </div>
+            </div>
+
+            <div v-if="question.attachments.length > 0" class="mt-2 flex flex-col gap-1">
+              <p v-for="attachment in question.attachments" :key="attachment.id" class="text-sm text-gray-500">
+                {{ attachment.mimeType }} ({{ Math.round(attachment.sizeBytes / 1024) }} KB)
+                <a v-if="attachment.viewUrl" :href="attachment.viewUrl" target="_blank" rel="noopener" class="underline">View</a>
+              </p>
+            </div>
+
+            <div
+              v-if="context.attachmentMaxCount > 0 && context.submissionsOpen && question.attachments.length < context.attachmentMaxCount"
+              class="mt-2 flex items-center gap-2"
+            >
+              <input type="file" accept="image/jpeg,image/png,image/gif,image/webp,application/pdf" @change="onFileSelected(question.id, $event)">
+              <UButton
+                size="xs"
+                label="Upload"
+                :loading="uploadingQuestionId === question.id"
+                :disabled="!selectedFiles[question.id]"
+                @click="uploadAttachment(question.id)"
+              />
             </div>
           </UCard>
           <p v-if="myQuestions.length === 0" class="text-sm text-gray-500">

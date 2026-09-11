@@ -61,6 +61,8 @@ const anonymityOptions = [
 ]
 const anonymityMode = ref<'named' | 'optional' | 'always'>('always')
 const showAttendeeType = ref(false)
+const attachmentMaxCount = ref(0)
+const attachmentMaxSizeBytes = ref(5242880)
 const settingsError = ref<string | null>(null)
 const savingSettings = ref(false)
 
@@ -109,7 +111,7 @@ onMounted(async () => {
   const [settingsResult, attendeeTypesResult] = await Promise.all([
     supabase
       .from('event_settings')
-      .select('question_max_length, moderation_mode, hide_vote_counts, accent_color, background_color, welcome_text, theme_mode, require_attendee_name, require_attendee_type, duplicate_check_strictness, attendee_edit_window_minutes, anonymity_mode, show_attendee_type')
+      .select('question_max_length, moderation_mode, hide_vote_counts, accent_color, background_color, welcome_text, theme_mode, require_attendee_name, require_attendee_type, duplicate_check_strictness, attendee_edit_window_minutes, anonymity_mode, show_attendee_type, attachment_max_count, attachment_max_size_bytes')
       .eq('event_id', eventId)
       .single(),
     supabase
@@ -133,6 +135,8 @@ onMounted(async () => {
     attendeeEditWindowMinutes.value = settingsResult.data.attendee_edit_window_minutes
     anonymityMode.value = settingsResult.data.anonymity_mode
     showAttendeeType.value = settingsResult.data.show_attendee_type
+    attachmentMaxCount.value = settingsResult.data.attachment_max_count
+    attachmentMaxSizeBytes.value = settingsResult.data.attachment_max_size_bytes
   }
   submissionsOpen.value = false
   votingOpen.value = false
@@ -336,6 +340,16 @@ async function saveSettings() {
     return
   }
 
+  if (!Number.isInteger(attachmentMaxCount.value) || attachmentMaxCount.value < 0) {
+    settingsError.value = 'Max attachments per question must be a whole number, 0 or more.'
+    return
+  }
+
+  if (!Number.isInteger(attachmentMaxSizeBytes.value) || attachmentMaxSizeBytes.value < 0) {
+    settingsError.value = 'Max attachment size must be a whole number of bytes, 0 or more.'
+    return
+  }
+
   savingSettings.value = true
 
   try {
@@ -351,7 +365,9 @@ async function saveSettings() {
           duplicate_check_strictness: duplicateCheckStrictness.value,
           attendee_edit_window_minutes: attendeeEditWindowMinutes.value,
           anonymity_mode: anonymityMode.value,
-          show_attendee_type: showAttendeeType.value
+          show_attendee_type: showAttendeeType.value,
+          attachment_max_count: attachmentMaxCount.value,
+          attachment_max_size_bytes: attachmentMaxSizeBytes.value
         })
         .eq('event_id', eventId)
         .select('event_id'),
@@ -592,6 +608,12 @@ async function saveBranding() {
             <span>Show attendee type publicly</span>
             <USwitch v-model="showAttendeeType" />
           </div>
+          <UFormField label="Max attachments per question (0 = disabled)">
+            <UInput v-model.number="attachmentMaxCount" type="number" />
+          </UFormField>
+          <UFormField label="Max attachment size (bytes)">
+            <UInput v-model.number="attachmentMaxSizeBytes" type="number" />
+          </UFormField>
           <UAlert v-if="settingsError" color="error" variant="subtle" :title="settingsError" />
           <UButton :loading="savingSettings" label="Save" class="self-start" @click="saveSettings" />
 
