@@ -34,6 +34,7 @@ interface ModerationReply {
   approvalStatus: ApprovalStatus
   visibility: Visibility
   displayName: string | null
+  reportCount: number
 }
 
 interface ModerationQuestion {
@@ -841,7 +842,9 @@ async function login() {
             <div v-for="reply in q.replies" :key="reply.id">
               <p class="text-sm">
                 <span class="text-gray-500">{{ reply.displayName ?? 'Someone' }}:</span> {{ reply.text }}
-                <span class="text-gray-500">({{ reply.approvalStatus }} - {{ reply.visibility }})</span>
+                <span class="text-gray-500">
+                  ({{ reply.approvalStatus }} - {{ reply.visibility }}<template v-if="reply.reportCount > 0"> - {{ reply.reportCount }} reports</template>)
+                </span>
               </p>
               <UAlert v-if="replyActionErrors[reply.id]" color="error" variant="subtle" :title="replyActionErrors[reply.id]" class="mt-1" />
               <div class="mt-1 flex flex-wrap gap-2">

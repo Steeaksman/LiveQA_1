@@ -49,8 +49,21 @@ export default defineEventHandler(async (event) => {
 
   const { data: questions } = await questionsQuery
 
+  const questionIds = (questions ?? []).map(q => q.id)
+
+  const { data: publicReplies } = await supabase
+    .from('replies')
+    .select('id, question_id, text, created_at, attendee_id')
+    .in('question_id', questionIds.length ? questionIds : [''])
+    .eq('visibility', 'public')
+    .is('deleted_at', null)
+    .order('created_at', { ascending: true })
+
+  const replyIds = (publicReplies ?? []).map(r => r.id)
+
   let votedQuestionIds = new Set<string>()
   let reportedQuestionIds = new Set<string>()
+  let reportedReplyIds = new Set<string>()
 
   if (token) {
     const { data: attendee } = await supabase
@@ -62,21 +75,27 @@ export default defineEventHandler(async (event) => {
       .maybeSingle()
 
     if (attendee) {
-      const [votesResult, reportsResult] = await Promise.all([
+      const [votesResult, reportsResult, replyReportsResult] = await Promise.all([
         supabase
           .from('votes')
           .select('question_id')
           .eq('attendee_id', attendee.id)
-          .in('question_id', (questions ?? []).map(q => q.id)),
+          .in('question_id', questionIds),
         supabase
           .from('content_reports')
           .select('question_id')
           .eq('attendee_id', attendee.id)
-          .in('question_id', (questions ?? []).map(q => q.id))
+          .in('question_id', questionIds),
+        supabase
+          .from('content_reports')
+          .select('reply_id')
+          .eq('attendee_id', attendee.id)
+          .in('reply_id', replyIds.length ? replyIds : [''])
       ])
 
       votedQuestionIds = new Set((votesResult.data ?? []).map(v => v.question_id))
       reportedQuestionIds = new Set((reportsResult.data ?? []).filter(r => r.question_id).map(r => r.question_id as string))
+      reportedReplyIds = new Set((replyReportsResult.data ?? []).filter(r => r.reply_id).map(r => r.reply_id as string))
     }
   }
 
@@ -100,16 +119,6 @@ export default defineEventHandler(async (event) => {
   const submittersById = new Map((submitters ?? []).map(a => [a.id, a]))
   const attendeeTypeLabelById = new Map((attendeeTypeRows ?? []).map(t => [t.id, t.label]))
 
-  const questionIds = (questions ?? []).map(q => q.id)
-
-  const { data: publicReplies } = await supabase
-    .from('replies')
-    .select('id, question_id, text, created_at, attendee_id')
-    .in('question_id', questionIds.length ? questionIds : [''])
-    .eq('visibility', 'public')
-    .is('deleted_at', null)
-    .order('created_at', { ascending: true })
-
   const replyAttendeeIds = [...new Set((publicReplies ?? []).map(r => r.attendee_id).filter((id): id is string => !!id))]
 
   const { data: replyAuthors } = await supabase
@@ -119,14 +128,15 @@ export default defineEventHandler(async (event) => {
 
   const replyAuthorNameById = new Map((replyAuthors ?? []).map(a => [a.id, a.display_name]))
 
-  const repliesByQuestionId = new Map<string, { id: string, text: string, createdAt: string, displayName: string | null }[]>()
+  const repliesByQuestionId = new Map<string, { id: string, text: string, createdAt: string, displayName: string | null, reported: boolean }[]>()
   for (const r of publicReplies ?? []) {
     const list = repliesByQuestionId.get(r.question_id) ?? []
     list.push({
       id: r.id,
       text: r.text,
       createdAt: r.created_at,
-      displayName: r.attendee_id ? replyAuthorNameById.get(r.attendee_id) ?? null : 'Moderator'
+      displayName: r.attendee_id ? replyAuthorNameById.get(r.attendee_id) ?? null : 'Moderator',
+      reported: reportedReplyIds.has(r.id)
     })
     repliesByQuestionId.set(r.question_id, list)
   }

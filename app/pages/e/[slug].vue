@@ -39,6 +39,7 @@ interface ReplyRow {
   text: string
   createdAt: string
   displayName: string | null
+  reported: boolean
 }
 
 interface QuestionRow {
@@ -209,6 +210,7 @@ onMounted(() => {
     .channel(`event:${context.value.id}:questions`)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'questions', filter: `event_id=eq.${context.value.id}` }, scheduleRefresh)
     .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'votes', filter: `event_id=eq.${context.value.id}` }, scheduleRefresh)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'replies', filter: `event_id=eq.${context.value.id}` }, scheduleRefresh)
     .subscribe((status) => {
       if (status === 'SUBSCRIBED') {
         connectionStatus.value = 'connected'
@@ -413,6 +415,42 @@ async function reportQuestion(questionId: string) {
     reportError.value = data?.error ?? 'Something went wrong. Please try again.'
   } finally {
     reportingQuestionId.value = null
+  }
+}
+
+const reportingReplyId = ref<string | null>(null)
+
+async function reportReply(replyId: string) {
+  if (!context.value) return
+  reportError.value = null
+  reportingReplyId.value = replyId
+
+  try {
+    const identity = getDeviceIdentity(context.value.id)
+
+    const result = await $fetch<ReportResponse>('/api/replies/report', {
+      method: 'POST',
+      body: {
+        eventId: context.value.id,
+        token: identity.token,
+        replyId
+      }
+    })
+
+    if (!result.success) {
+      reportError.value = result.error ?? 'Something went wrong. Please try again.'
+      return
+    }
+
+    for (const q of questionsResponse.value?.data?.questions ?? []) {
+      const target = q.replies.find(r => r.id === replyId)
+      if (target) target.reported = true
+    }
+  } catch (err) {
+    const data = (err as { data?: ReportResponse })?.data
+    reportError.value = data?.error ?? 'Something went wrong. Please try again.'
+  } finally {
+    reportingReplyId.value = null
   }
 }
 
@@ -709,9 +747,21 @@ async function deleteQuestion(questionId: string) {
           </div>
 
           <div v-if="question.replies.length > 0" class="mt-2 flex flex-col gap-1 border-l pl-3">
-            <p v-for="reply in question.replies" :key="reply.id" class="text-sm">
-              <span class="text-gray-500">{{ reply.displayName ?? 'Someone' }}:</span> {{ reply.text }}
-            </p>
+            <div v-for="reply in question.replies" :key="reply.id" class="flex items-center justify-between gap-2">
+              <p class="text-sm">
+                <span class="text-gray-500">{{ reply.displayName ?? 'Someone' }}:</span> {{ reply.text }}
+              </p>
+              <UButton
+                v-if="joined"
+                size="2xs"
+                variant="ghost"
+                color="error"
+                :disabled="reply.reported"
+                :loading="reportingReplyId === reply.id"
+                :label="reply.reported ? 'Reported' : 'Report'"
+                @click="reportReply(reply.id)"
+              />
+            </div>
           </div>
 
           <div v-if="joined" class="mt-2 flex gap-2">

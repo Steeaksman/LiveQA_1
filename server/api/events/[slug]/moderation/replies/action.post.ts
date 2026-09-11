@@ -42,9 +42,9 @@ export default defineEventHandler(async (event) => {
 
   const { data: reply } = await supabase
     .from('replies')
-    .select('id, approval_status, visibility, questions!inner(event_id)')
+    .select('id, approval_status, visibility')
     .eq('id', replyId)
-    .eq('questions.event_id', session.eventId)
+    .eq('event_id', session.eventId)
     .is('deleted_at', null)
     .maybeSingle()
 

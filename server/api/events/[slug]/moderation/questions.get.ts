@@ -70,7 +70,7 @@ export default defineEventHandler(async (event) => {
 
   const { data: allReplies } = await supabase
     .from('replies')
-    .select('id, question_id, text, created_at, attendee_id, approval_status, visibility')
+    .select('id, question_id, text, created_at, attendee_id, approval_status, visibility, content_reports(count)')
     .in('question_id', questionIds.length ? questionIds : [''])
     .is('deleted_at', null)
     .order('created_at', { ascending: true })
@@ -91,6 +91,7 @@ export default defineEventHandler(async (event) => {
     approvalStatus: string
     visibility: string
     displayName: string | null
+    reportCount: number
   }[]>()
 
   for (const r of allReplies ?? []) {
@@ -101,7 +102,8 @@ export default defineEventHandler(async (event) => {
       createdAt: r.created_at,
       approvalStatus: r.approval_status,
       visibility: r.visibility,
-      displayName: r.attendee_id ? replyAuthorNameById.get(r.attendee_id) ?? null : 'Moderator'
+      displayName: r.attendee_id ? replyAuthorNameById.get(r.attendee_id) ?? null : 'Moderator',
+      reportCount: r.content_reports?.[0]?.count ?? 0
     })
     repliesByQuestionId.set(r.question_id, list)
   }
