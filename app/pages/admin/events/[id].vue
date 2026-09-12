@@ -63,6 +63,12 @@ const anonymityMode = ref<'named' | 'optional' | 'always'>('always')
 const showAttendeeType = ref(false)
 const attachmentMaxCount = ref(0)
 const attachmentMaxSizeBytes = ref(5242880)
+const abuseProtectionOptions = [
+  { label: 'Open', value: 'open' },
+  { label: 'Standard', value: 'standard' },
+  { label: 'Strict', value: 'strict' }
+]
+const abuseProtectionTier = ref<'open' | 'standard' | 'strict'>('standard')
 const settingsError = ref<string | null>(null)
 const savingSettings = ref(false)
 
@@ -118,7 +124,7 @@ onMounted(async () => {
   const [settingsResult, attendeeTypesResult] = await Promise.all([
     supabase
       .from('event_settings')
-      .select('question_max_length, moderation_mode, hide_vote_counts, accent_color, background_color, welcome_text, theme_mode, require_attendee_name, require_attendee_type, duplicate_check_strictness, attendee_edit_window_minutes, anonymity_mode, show_attendee_type, attachment_max_count, attachment_max_size_bytes')
+      .select('question_max_length, moderation_mode, hide_vote_counts, accent_color, background_color, welcome_text, theme_mode, require_attendee_name, require_attendee_type, duplicate_check_strictness, attendee_edit_window_minutes, anonymity_mode, show_attendee_type, attachment_max_count, attachment_max_size_bytes, abuse_protection_tier')
       .eq('event_id', eventId)
       .single(),
     supabase
@@ -144,6 +150,7 @@ onMounted(async () => {
     showAttendeeType.value = settingsResult.data.show_attendee_type
     attachmentMaxCount.value = settingsResult.data.attachment_max_count
     attachmentMaxSizeBytes.value = settingsResult.data.attachment_max_size_bytes
+    abuseProtectionTier.value = settingsResult.data.abuse_protection_tier
   }
   submissionsOpen.value = false
   votingOpen.value = false
@@ -376,7 +383,8 @@ async function saveSettings() {
           anonymity_mode: anonymityMode.value,
           show_attendee_type: showAttendeeType.value,
           attachment_max_count: attachmentMaxCount.value,
-          attachment_max_size_bytes: attachmentMaxSizeBytes.value
+          attachment_max_size_bytes: attachmentMaxSizeBytes.value,
+          abuse_protection_tier: abuseProtectionTier.value
         })
         .eq('event_id', eventId)
         .select('event_id'),
@@ -741,6 +749,9 @@ async function removeBrandingLogo(slot: 'logo' | 'sponsor_logo') {
           </UFormField>
           <UFormField label="Max attachment size (bytes)">
             <UInput v-model.number="attachmentMaxSizeBytes" type="number" />
+          </UFormField>
+          <UFormField label="Abuse protection">
+            <USelect v-model="abuseProtectionTier" :items="abuseProtectionOptions" value-key="value" />
           </UFormField>
           <UAlert v-if="settingsError" color="error" variant="subtle" :title="settingsError" />
           <UButton :loading="savingSettings" label="Save" class="self-start" @click="saveSettings" />

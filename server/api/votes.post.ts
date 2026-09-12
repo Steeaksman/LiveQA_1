@@ -1,5 +1,6 @@
 import { defineEventHandler, readBody, setResponseStatus } from 'h3'
 import { useSupabaseServiceRole } from '../utils/supabase'
+import { isAttendeeBanned, TEMPORARILY_RESTRICTED_ERROR } from '../utils/enforce-abuse-protection'
 
 interface VoteBody {
   eventId?: string
@@ -55,6 +56,11 @@ export default defineEventHandler(async (event) => {
   if (!attendee) {
     setResponseStatus(event, 400)
     return { success: false, data: null, error: NOT_JOINED_ERROR }
+  }
+
+  if (await isAttendeeBanned(attendee.id)) {
+    setResponseStatus(event, 429)
+    return { success: false, data: null, error: TEMPORARILY_RESTRICTED_ERROR }
   }
 
   const { data: question } = await supabase

@@ -1,5 +1,6 @@
 import { defineEventHandler, readBody, setResponseStatus } from 'h3'
 import { useSupabaseServiceRole } from '../utils/supabase'
+import { enforceSubmissionRateLimit } from '../utils/enforce-abuse-protection'
 
 interface SubmitQuestionBody {
   eventId?: string
@@ -58,9 +59,15 @@ export default defineEventHandler(async (event) => {
 
   const { data: settings } = await supabase
     .from('event_settings')
-    .select('question_max_length, moderation_mode, anonymity_mode')
+    .select('question_max_length, moderation_mode, anonymity_mode, abuse_protection_tier')
     .eq('event_id', eventId)
     .single()
+
+  const rateLimitResult = await enforceSubmissionRateLimit(attendee.id, settings?.abuse_protection_tier ?? 'standard')
+  if (!rateLimitResult.allowed) {
+    setResponseStatus(event, 429)
+    return { success: false, data: null, error: rateLimitResult.error }
+  }
 
   const questionMaxLength = settings?.question_max_length ?? 500
   const text = (body?.text ?? '').trim()
