@@ -15,7 +15,7 @@ const supabase = useSupabase()
 
 const loading = ref(true)
 const notFound = ref(false)
-const activeTab = ref<'dashboard' | 'details' | 'attendee-types' | 'settings' | 'qr-codes' | 'signage' | 'branding'>('details')
+const activeTab = ref<'dashboard' | 'questions' | 'details' | 'attendee-types' | 'settings' | 'qr-codes' | 'signage' | 'branding'>('details')
 
 const profile = ref<AuthenticatedProfile | null>(null)
 const duplicating = ref(false)
@@ -184,9 +184,117 @@ watch(activeTab, (value) => {
   } else {
     stopDashboardLiveUpdates()
   }
+
+  if (value === 'questions') {
+    fetchQuestions()
+  }
 })
 
 onUnmounted(stopDashboardLiveUpdates)
+
+interface QuestionRevision {
+  id: string
+  originalText: string
+  revisedText: string
+  editedByEmail: string | null
+  createdAt: string
+}
+
+interface AdminQuestionRow {
+  id: string
+  text: string
+  createdAt: string
+  approvalStatus: string
+  visibility: string
+  answered: boolean
+  archived: boolean
+  displayName: string | null
+  revisions: QuestionRevision[]
+}
+
+interface QuestionsResponse {
+  success: boolean
+  data: { questions: AdminQuestionRow[] } | null
+  error: string | null
+}
+
+interface EditQuestionResponse {
+  success: boolean
+  data: { questionId: string } | null
+  error: string | null
+}
+
+const questions = ref<AdminQuestionRow[]>([])
+const questionsError = ref<string | null>(null)
+const editingQuestionId = ref<string | null>(null)
+const editingText = ref('')
+const savingQuestionId = ref<string | null>(null)
+const expandedRevisionsId = ref<string | null>(null)
+
+async function fetchQuestions() {
+  const { data: { session } } = await supabase.auth.getSession()
+  if (!session) return
+
+  try {
+    const response = await $fetch<QuestionsResponse>(`/api/admin/events/${eventId}/questions`, {
+      headers: { Authorization: `Bearer ${session.access_token}` }
+    })
+
+    if (response.success && response.data) {
+      questions.value = response.data.questions
+    } else {
+      questionsError.value = response.error ?? 'Something went wrong. Please try again.'
+    }
+  } catch {
+    questionsError.value = 'Something went wrong. Please try again.'
+  }
+}
+
+function startEditingQuestion(question: AdminQuestionRow) {
+  editingQuestionId.value = question.id
+  editingText.value = question.text
+}
+
+function cancelEditingQuestion() {
+  editingQuestionId.value = null
+  editingText.value = ''
+}
+
+async function saveQuestionEdit(questionId: string) {
+  questionsError.value = null
+  savingQuestionId.value = questionId
+
+  try {
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session) {
+      questionsError.value = 'Your session expired. Please log in again.'
+      return
+    }
+
+    const response = await $fetch<EditQuestionResponse>(`/api/admin/events/${eventId}/questions/edit`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${session.access_token}` },
+      body: { questionId, text: editingText.value }
+    })
+
+    if (!response.success) {
+      questionsError.value = response.error ?? 'Something went wrong. Please try again.'
+      return
+    }
+
+    cancelEditingQuestion()
+    await fetchQuestions()
+  } catch (err) {
+    const data = (err as { data?: EditQuestionResponse })?.data
+    questionsError.value = data?.error ?? 'Something went wrong. Please try again.'
+  } finally {
+    savingQuestionId.value = null
+  }
+}
+
+function toggleRevisions(questionId: string) {
+  expandedRevisionsId.value = expandedRevisionsId.value === questionId ? null : questionId
+}
 
 onMounted(async () => {
   profile.value = await getAuthenticatedProfile(supabase)
@@ -724,6 +832,11 @@ async function removeBrandingLogo(slot: 'logo' | 'sponsor_logo') {
           @click="activeTab = 'dashboard'"
         />
         <UButton
+          :variant="activeTab === 'questions' ? 'solid' : 'ghost'"
+          label="Questions"
+          @click="activeTab = 'questions'"
+        />
+        <UButton
           :variant="activeTab === 'details' ? 'solid' : 'ghost'"
           label="Details"
           @click="activeTab = 'details'"
@@ -784,6 +897,50 @@ async function removeBrandingLogo(slot: 'logo' | 'sponsor_logo') {
           </div>
         </div>
       </UCard>
+
+      <div v-else-if="activeTab === 'questions'" class="flex flex-col gap-3">
+        <UAlert v-if="questionsError" color="error" variant="subtle" :title="questionsError" />
+        <UCard v-for="question in questions" :key="question.id">
+          <p class="text-sm text-gray-500">
+            {{ question.displayName ?? 'Anonymous' }} -
+            {{ question.approvalStatus }} - {{ question.visibility }}
+            <template v-if="question.answered"> - answered</template>
+            <template v-if="question.archived"> - archived</template>
+          </p>
+
+          <div v-if="editingQuestionId === question.id" class="mt-2 flex flex-col gap-2">
+            <UTextarea v-model="editingText" />
+            <div class="flex gap-2">
+              <UButton size="sm" label="Save" :loading="savingQuestionId === question.id" @click="saveQuestionEdit(question.id)" />
+              <UButton size="sm" variant="ghost" label="Cancel" @click="cancelEditingQuestion" />
+            </div>
+          </div>
+          <div v-else class="mt-2 flex items-center justify-between gap-2">
+            <p>{{ question.text }}</p>
+            <UButton size="xs" variant="ghost" label="Edit" @click="startEditingQuestion(question)" />
+          </div>
+
+          <UButton
+            size="xs"
+            variant="ghost"
+            class="mt-2"
+            :label="`Show revisions (${question.revisions.length})`"
+            @click="toggleRevisions(question.id)"
+          />
+          <div v-if="expandedRevisionsId === question.id" class="mt-2 flex flex-col gap-1 border-l pl-3">
+            <p v-for="revision in question.revisions" :key="revision.id" class="text-sm text-gray-500">
+              {{ revision.editedByEmail ?? 'Unknown' }} ({{ new Date(revision.createdAt).toLocaleString() }}):
+              "{{ revision.originalText }}" -&gt; "{{ revision.revisedText }}"
+            </p>
+            <p v-if="question.revisions.length === 0" class="text-sm text-gray-500">
+              No edits yet.
+            </p>
+          </div>
+        </UCard>
+        <p v-if="questions.length === 0" class="text-sm text-gray-500">
+          No questions yet.
+        </p>
+      </div>
 
       <UCard v-else-if="activeTab === 'details'">
         <div class="flex flex-col gap-3">
