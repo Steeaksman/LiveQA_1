@@ -37,6 +37,13 @@ interface ModerationReply {
   reportCount: number
 }
 
+interface ModerationAttachment {
+  id: string
+  mimeType: string
+  sizeBytes: number
+  viewUrl: string | null
+}
+
 interface ModerationQuestion {
   id: string
   text: string
@@ -51,6 +58,7 @@ interface ModerationQuestion {
   attendeeType: string | null
   topicName: string | null
   replies: ModerationReply[]
+  attachments: ModerationAttachment[]
 }
 
 interface ModerationQuestionsResponse {
@@ -86,6 +94,12 @@ interface ReplyActionResponse {
 interface ModeratorReplyResponse {
   success: boolean
   data: { replyId: string } | null
+  error: string | null
+}
+
+interface RemoveAttachmentResponse {
+  success: boolean
+  data: { attachmentId: string } | null
   error: string | null
 }
 
@@ -386,6 +400,34 @@ async function performReplyAction(replyId: string, action: ReplyAction) {
     replyActionErrors.value = { ...replyActionErrors.value, [replyId]: data?.error ?? 'Something went wrong. Please try again.' }
   } finally {
     actioningReplyId.value = null
+  }
+}
+
+const attachmentActionErrors = ref<Record<string, string>>({})
+const actioningAttachmentId = ref<string | null>(null)
+
+async function removeAttachment(attachmentId: string) {
+  if (!sessionToken.value) return
+  attachmentActionErrors.value = { ...attachmentActionErrors.value, [attachmentId]: '' }
+  actioningAttachmentId.value = attachmentId
+
+  try {
+    const result = await $fetch<RemoveAttachmentResponse>(`/api/events/${slug}/moderation/attachments/remove`, {
+      method: 'POST',
+      body: { token: sessionToken.value, attachmentId }
+    })
+
+    if (!result.success) {
+      attachmentActionErrors.value = { ...attachmentActionErrors.value, [attachmentId]: result.error ?? 'Something went wrong. Please try again.' }
+      return
+    }
+
+    await loadQueue()
+  } catch (err) {
+    const data = (err as { data?: RemoveAttachmentResponse })?.data
+    attachmentActionErrors.value = { ...attachmentActionErrors.value, [attachmentId]: data?.error ?? 'Something went wrong. Please try again.' }
+  } finally {
+    actioningAttachmentId.value = null
   }
 }
 
@@ -836,6 +878,26 @@ async function login() {
               :loading="actioningQuestionId === q.id"
               @click="performAction(q.id, a.action)"
             />
+          </div>
+
+          <div v-if="q.attachments.length > 0" class="mt-2 flex flex-col gap-1">
+            <div v-for="attachment in q.attachments" :key="attachment.id">
+              <div class="flex items-center justify-between gap-2">
+                <p class="text-sm text-gray-500">
+                  {{ attachment.mimeType }} ({{ Math.ceil(attachment.sizeBytes / 1024) }} KB)
+                  <a v-if="attachment.viewUrl" :href="attachment.viewUrl" target="_blank" rel="noopener noreferrer" class="underline">View</a>
+                </p>
+                <UButton
+                  size="2xs"
+                  variant="ghost"
+                  color="error"
+                  label="Remove"
+                  :loading="actioningAttachmentId === attachment.id"
+                  @click="removeAttachment(attachment.id)"
+                />
+              </div>
+              <UAlert v-if="attachmentActionErrors[attachment.id]" color="error" variant="subtle" :title="attachmentActionErrors[attachment.id]" class="mt-1" />
+            </div>
           </div>
 
           <div v-if="q.replies.length > 0" class="mt-2 flex flex-col gap-2 border-l pl-3">

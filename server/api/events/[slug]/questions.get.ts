@@ -61,6 +61,32 @@ export default defineEventHandler(async (event) => {
 
   const replyIds = (publicReplies ?? []).map(r => r.id)
 
+  const { data: attachments } = await supabase
+    .from('attachments')
+    .select('id, question_id, storage_path, mime_type, size_bytes')
+    .in('question_id', questionIds.length ? questionIds : [''])
+    .is('deleted_at', null)
+    .order('created_at', { ascending: true })
+
+  const attachmentPaths = (attachments ?? []).map(a => a.storage_path)
+  const { data: signedAttachmentUrls } = attachmentPaths.length
+    ? await supabase.storage.from('question-attachments').createSignedUrls(attachmentPaths, 3600)
+    : { data: [] }
+
+  const attachmentSignedUrlByPath = new Map((signedAttachmentUrls ?? []).map(s => [s.path, s.signedUrl]))
+
+  const attachmentsByQuestionId = new Map<string, { id: string, mimeType: string, sizeBytes: number, viewUrl: string | null }[]>()
+  for (const a of attachments ?? []) {
+    const list = attachmentsByQuestionId.get(a.question_id) ?? []
+    list.push({
+      id: a.id,
+      mimeType: a.mime_type,
+      sizeBytes: a.size_bytes,
+      viewUrl: attachmentSignedUrlByPath.get(a.storage_path) ?? null
+    })
+    attachmentsByQuestionId.set(a.question_id, list)
+  }
+
   let votedQuestionIds = new Set<string>()
   let reportedQuestionIds = new Set<string>()
   let reportedReplyIds = new Set<string>()
@@ -170,7 +196,8 @@ export default defineEventHandler(async (event) => {
       reported: r.reported,
       displayName: r.anonymous ? null : submitter?.display_name ?? null,
       attendeeType: (r.anonymous || !showAttendeeType) ? null : attendeeTypeLabel ?? null,
-      replies: repliesByQuestionId.get(r.id) ?? []
+      replies: repliesByQuestionId.get(r.id) ?? [],
+      attachments: attachmentsByQuestionId.get(r.id) ?? []
     }
   })
 

@@ -53,6 +53,7 @@ interface QuestionRow {
   displayName: string | null
   attendeeType: string | null
   replies: ReplyRow[]
+  attachments: AttachmentRow[]
 }
 
 interface QuestionsResponse {
@@ -827,6 +828,13 @@ async function uploadAttachment(questionId: string) {
                 @click="reportQuestion(question.id)"
               />
             </div>
+          </div>
+
+          <div v-if="question.attachments.length > 0" class="mt-2 flex flex-col gap-1">
+            <p v-for="attachment in question.attachments" :key="attachment.id" class="text-sm text-gray-500">
+              {{ attachment.mimeType }} ({{ Math.ceil(attachment.sizeBytes / 1024) }} KB)
+              <a v-if="attachment.viewUrl" :href="attachment.viewUrl" target="_blank" rel="noopener noreferrer" class="underline">View</a>
+            </p>
           </div>
 
           <div v-if="question.replies.length > 0" class="mt-2 flex flex-col gap-1 border-l pl-3">
