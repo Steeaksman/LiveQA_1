@@ -2,6 +2,7 @@ import { defineEventHandler, getRouterParam, readMultipartFormData, setResponseS
 import { verifyEventAccess } from '../../../../utils/verify-event-access'
 import { useSupabaseServiceRole } from '../../../../utils/supabase'
 import { logAuditAction } from '../../../../utils/log-audit-action'
+import { fileContentMatchesDeclaredType } from '../../../../utils/detect-file-type'
 
 const NOT_AUTHORIZED_ERROR = 'Not authorized.'
 const INVALID_SLOT_ERROR = 'Invalid logo slot.'
@@ -58,7 +59,7 @@ export default defineEventHandler(async (event) => {
     return { success: false, data: null, error: NO_FILE_ERROR }
   }
 
-  if (!file.type || !ALLOWED_MIME_TYPES.includes(file.type)) {
+  if (!file.type || !ALLOWED_MIME_TYPES.includes(file.type) || !fileContentMatchesDeclaredType(file.data, file.type)) {
     setResponseStatus(event, 400)
     return { success: false, data: null, error: UNSUPPORTED_TYPE_ERROR }
   }

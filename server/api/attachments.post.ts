@@ -1,6 +1,8 @@
 import { randomUUID } from 'node:crypto'
 import { defineEventHandler, readMultipartFormData, setResponseStatus } from 'h3'
 import { useSupabaseServiceRole } from '../utils/supabase'
+import { fileContentMatchesDeclaredType } from '../utils/detect-file-type'
+import { isAttendeeBanned, TEMPORARILY_RESTRICTED_ERROR } from '../utils/enforce-abuse-protection'
 
 const EVENT_NOT_FOUND_ERROR = 'Event not found.'
 const SUBMISSIONS_CLOSED_ERROR = 'Submissions are currently closed.'
@@ -70,6 +72,11 @@ export default defineEventHandler(async (event) => {
     return { success: false, data: null, error: NOT_JOINED_ERROR }
   }
 
+  if (await isAttendeeBanned(attendee.id)) {
+    setResponseStatus(event, 429)
+    return { success: false, data: null, error: TEMPORARILY_RESTRICTED_ERROR }
+  }
+
   const { data: question } = await supabase
     .from('questions')
     .select('id')
@@ -114,7 +121,7 @@ export default defineEventHandler(async (event) => {
     return { success: false, data: null, error: NO_FILE_ERROR }
   }
 
-  if (!file.type || !ALLOWED_MIME_TYPES.includes(file.type)) {
+  if (!file.type || !ALLOWED_MIME_TYPES.includes(file.type) || !fileContentMatchesDeclaredType(file.data, file.type)) {
     setResponseStatus(event, 400)
     return { success: false, data: null, error: UNSUPPORTED_TYPE_ERROR }
   }
