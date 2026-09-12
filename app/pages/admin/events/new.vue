@@ -28,6 +28,7 @@ const eventJoinCode = ref('')
 const name = ref('')
 const creating = ref(false)
 const createError = ref<string | null>(null)
+const createErrorField = ref<'name' | null>(null)
 
 const templates = ref<TemplateOption[]>([])
 const selectedTemplateId = ref<string | null>(null)
@@ -53,9 +54,11 @@ onMounted(async () => {
 
 async function createEvent() {
   createError.value = null
+  createErrorField.value = null
 
   if (!name.value.trim()) {
     createError.value = 'Name is required.'
+    createErrorField.value = 'name'
     return
   }
 
@@ -199,6 +202,7 @@ const hideVoteCounts = ref(false)
 const submissionsOpen = ref(false)
 const votingOpen = ref(false)
 const settingsError = ref<string | null>(null)
+const settingsErrorField = ref<'questionMaxLength' | null>(null)
 const savingSettings = ref(false)
 
 async function goToSettings() {
@@ -232,9 +236,11 @@ async function goToSettings() {
 
 async function finish() {
   settingsError.value = null
+  settingsErrorField.value = null
 
   if (!Number.isInteger(questionMaxLength.value) || questionMaxLength.value <= 0) {
     settingsError.value = 'Max question length must be a positive whole number.'
+    settingsErrorField.value = 'questionMaxLength'
     return
   }
 
@@ -316,13 +322,13 @@ async function publish() {
 
     <UCard v-if="step === 'details'">
       <UForm :state="{}" class="flex flex-col gap-3" @submit="createEvent">
-        <UFormField label="Event name" required>
+        <UFormField label="Event name" required :error="createErrorField === 'name' ? createError ?? undefined : undefined">
           <UInput v-model="name" />
         </UFormField>
         <UFormField label="Start from template">
           <USelect v-model="selectedTemplateId" :items="templateOptions" value-key="value" />
         </UFormField>
-        <UAlert v-if="createError" color="error" variant="subtle" :title="createError" />
+        <UAlert v-if="createError && !createErrorField" color="error" variant="subtle" :title="createError" />
         <UButton type="submit" :loading="creating" label="Create" class="self-start" />
       </UForm>
     </UCard>
@@ -331,15 +337,16 @@ async function publish() {
       <h2 class="mb-3 font-medium">
         Attendee types
       </h2>
-      <div class="mb-3 flex gap-2">
-        <UInput v-model="newLabel" placeholder="e.g. Student, Staff" @keyup.enter="addAttendeeType" />
-        <UButton :loading="addingLabel" label="Add" @click="addAttendeeType" />
-      </div>
-      <UAlert v-if="attendeeTypesError" color="error" variant="subtle" :title="attendeeTypesError" class="mb-3" />
+      <UFormField label="New attendee type" class="mb-3" :error="attendeeTypesError ?? undefined">
+        <div class="flex gap-2">
+          <UInput v-model="newLabel" placeholder="e.g. Student, Staff" @keyup.enter="addAttendeeType" />
+          <UButton :loading="addingLabel" label="Add" @click="addAttendeeType" />
+        </div>
+      </UFormField>
       <div class="mb-4 flex flex-col gap-2">
         <div v-for="type in attendeeTypes" :key="type.id" class="flex items-center justify-between">
           <span>{{ type.label }}</span>
-          <UButton size="xs" color="error" variant="ghost" label="Remove" @click="removeAttendeeType(type.id)" />
+          <UButton size="xs" color="error" variant="ghost" label="Remove" :aria-label="`Remove attendee type: ${type.label}`" @click="removeAttendeeType(type.id)" />
         </div>
         <p v-if="attendeeTypes.length === 0" class="text-sm text-gray-500">
           No attendee types added - optional.
@@ -353,7 +360,7 @@ async function publish() {
         Q&amp;A &amp; moderation settings
       </h2>
       <div class="flex flex-col gap-3">
-        <UFormField label="Max question length">
+        <UFormField label="Max question length" :error="settingsErrorField === 'questionMaxLength' ? settingsError ?? undefined : undefined">
           <UInput v-model.number="questionMaxLength" type="number" />
         </UFormField>
         <UFormField label="Moderation mode">
@@ -371,7 +378,7 @@ async function publish() {
           <span>Voting open</span>
           <USwitch v-model="votingOpen" />
         </div>
-        <UAlert v-if="settingsError" color="error" variant="subtle" :title="settingsError" />
+        <UAlert v-if="settingsError && !settingsErrorField" color="error" variant="subtle" :title="settingsError" />
         <UButton :loading="savingSettings" label="Next" class="self-start" @click="finish" />
       </div>
     </UCard>

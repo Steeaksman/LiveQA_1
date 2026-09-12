@@ -76,8 +76,14 @@ async function restoreBackup() {
         <p class="text-sm text-gray-500">
           Restoring a backup creates a brand new event with fresh ids, a new slug and join code, and starts it in draft status for you to review.
         </p>
-        <input type="file" accept="application/json" @change="onFileSelected">
-        <UAlert v-if="restoreError" color="error" variant="subtle" :title="restoreError" />
+        <input
+          type="file"
+          aria-label="Backup file to restore"
+          :aria-describedby="restoreError ? 'restore-error' : undefined"
+          accept="application/json"
+          @change="onFileSelected"
+        >
+        <UAlert v-if="restoreError" id="restore-error" color="error" variant="subtle" :title="restoreError" />
         <UButton :loading="restoring" label="Restore" class="self-start" @click="restoreBackup" />
       </div>
     </UCard>

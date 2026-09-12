@@ -17,6 +17,7 @@ const notFound = ref(false)
 
 const name = ref('')
 const saveError = ref<string | null>(null)
+const saveErrorField = ref<'name' | 'questionMaxLength' | null>(null)
 const saving = ref(false)
 
 const moderationOptions = [
@@ -75,14 +76,17 @@ function removeAttendeeTypeLabel(label: string) {
 
 async function saveTemplate() {
   saveError.value = null
+  saveErrorField.value = null
 
   if (!name.value.trim()) {
     saveError.value = 'Name is required.'
+    saveErrorField.value = 'name'
     return
   }
 
   if (!Number.isInteger(questionMaxLength.value) || questionMaxLength.value <= 0) {
     saveError.value = 'Max question length must be a positive whole number.'
+    saveErrorField.value = 'questionMaxLength'
     return
   }
 
@@ -127,10 +131,10 @@ async function saveTemplate() {
 
       <UCard>
         <div class="flex flex-col gap-3">
-          <UFormField label="Template name" required>
+          <UFormField label="Template name" required :error="saveErrorField === 'name' ? saveError ?? undefined : undefined">
             <UInput v-model="name" />
           </UFormField>
-          <UFormField label="Max question length">
+          <UFormField label="Max question length" :error="saveErrorField === 'questionMaxLength' ? saveError ?? undefined : undefined">
             <UInput v-model.number="questionMaxLength" type="number" />
           </UFormField>
           <UFormField label="Moderation mode">
@@ -144,22 +148,23 @@ async function saveTemplate() {
           <h2 class="mt-2 font-medium">
             Attendee types
           </h2>
-          <div class="flex gap-2">
-            <UInput v-model="newLabel" placeholder="e.g. Student, Staff" @keyup.enter="addAttendeeTypeLabel" />
-            <UButton label="Add" @click="addAttendeeTypeLabel" />
-          </div>
-          <UAlert v-if="attendeeTypesError" color="error" variant="subtle" :title="attendeeTypesError" />
+          <UFormField label="New attendee type" :error="attendeeTypesError ?? undefined">
+            <div class="flex gap-2">
+              <UInput v-model="newLabel" placeholder="e.g. Student, Staff" @keyup.enter="addAttendeeTypeLabel" />
+              <UButton label="Add" @click="addAttendeeTypeLabel" />
+            </div>
+          </UFormField>
           <div class="flex flex-col gap-2">
             <div v-for="label in attendeeTypeLabels" :key="label" class="flex items-center justify-between">
               <span>{{ label }}</span>
-              <UButton size="xs" color="error" variant="ghost" label="Remove" @click="removeAttendeeTypeLabel(label)" />
+              <UButton size="xs" color="error" variant="ghost" label="Remove" :aria-label="`Remove attendee type: ${label}`" @click="removeAttendeeTypeLabel(label)" />
             </div>
             <p v-if="attendeeTypeLabels.length === 0" class="text-sm text-gray-500">
               No attendee types added - optional.
             </p>
           </div>
 
-          <UAlert v-if="saveError" color="error" variant="subtle" :title="saveError" />
+          <UAlert v-if="saveError && !saveErrorField" color="error" variant="subtle" :title="saveError" />
           <UButton :loading="saving" label="Save" class="self-start" @click="saveTemplate" />
         </div>
       </UCard>

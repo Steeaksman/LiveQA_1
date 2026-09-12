@@ -88,11 +88,12 @@ async function removeTerm(id: string) {
     </h1>
 
     <UCard class="mb-6">
-      <div class="flex gap-2">
-        <UInput v-model="newTerm" placeholder="Term to block" class="flex-1" @keyup.enter="addTerm" />
-        <UButton :loading="adding" label="Add" @click="addTerm" />
-      </div>
-      <UAlert v-if="addError" color="error" variant="subtle" :title="addError" class="mt-3" />
+      <UFormField label="Term to block" :error="addError ?? undefined">
+        <div class="flex gap-2">
+          <UInput v-model="newTerm" placeholder="Term to block" class="flex-1" @keyup.enter="addTerm" />
+          <UButton :loading="adding" label="Add" @click="addTerm" />
+        </div>
+      </UFormField>
     </UCard>
 
     <UAlert v-if="errorMessage" color="error" variant="subtle" :title="errorMessage" class="mb-4" />
@@ -103,7 +104,7 @@ async function removeTerm(id: string) {
     <div v-else class="flex flex-col gap-2">
       <div v-for="row in blockedTerms" :key="row.id" class="flex items-center justify-between">
         <span>{{ row.term }}</span>
-        <UButton size="xs" color="error" variant="ghost" @click="removeTerm(row.id)">
+        <UButton size="xs" color="error" variant="ghost" :aria-label="`Remove: ${row.term}`" @click="removeTerm(row.id)">
           Remove
         </UButton>
       </div>

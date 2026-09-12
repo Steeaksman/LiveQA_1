@@ -199,7 +199,7 @@ async function removeAssignment(assignmentId: string) {
         <div v-if="row.em_scope === 'restricted'" class="mt-3 flex flex-col gap-2">
           <div v-for="assignment in row.assignments" :key="assignment.id" class="flex items-center justify-between text-sm">
             <span>{{ assignment.event_name }}</span>
-            <UButton size="xs" color="error" variant="ghost" @click="removeAssignment(assignment.id)">
+            <UButton size="xs" color="error" variant="ghost" :aria-label="`Remove: ${assignment.event_name}`" @click="removeAssignment(assignment.id)">
               Remove
             </UButton>
           </div>
@@ -208,6 +208,7 @@ async function removeAssignment(assignmentId: string) {
             value-key="id"
             option-attribute="name"
             placeholder="Add an event"
+            :aria-label="`Add an event for: ${row.email}`"
             @update:model-value="(v) => addAssignment(row, v as string)"
           />
         </div>
