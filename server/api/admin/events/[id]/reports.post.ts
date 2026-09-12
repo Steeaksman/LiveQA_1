@@ -5,6 +5,7 @@ import { logAuditAction } from '../../../../utils/log-audit-action'
 import { buildEventReportData, type ReportType } from '../../../../utils/build-event-report-data'
 import { buildReportCsv } from '../../../../utils/build-report-csv'
 import { buildReportHtml } from '../../../../utils/build-report-html'
+import { buildReportPdf } from '../../../../utils/build-report-pdf'
 
 interface GenerateReportBody {
   reportType?: string
@@ -23,8 +24,8 @@ function isReportType(value: string): value is ReportType {
   return value === 'combined' || value === 'topic_by_topic'
 }
 
-function isFormat(value: string): value is 'csv' | 'html' {
-  return value === 'csv' || value === 'html'
+function isFormat(value: string): value is 'csv' | 'html' | 'pdf' {
+  return value === 'csv' || value === 'html' || value === 'pdf'
 }
 
 export default defineEventHandler(async (event) => {
@@ -69,8 +70,36 @@ export default defineEventHandler(async (event) => {
   }
 
   const reportData = await buildEventReportData(eventId, reportTypeValue)
-  const content = formatValue === 'csv' ? buildReportCsv(reportData) : buildReportHtml(reportData)
-  const contentType = formatValue === 'csv' ? 'text/csv' : 'text/html'
+
+  let content: string | Buffer
+  let contentType: string
+
+  if (formatValue === 'csv') {
+    content = buildReportCsv(reportData)
+    contentType = 'text/csv'
+  } else if (formatValue === 'html') {
+    content = buildReportHtml(reportData)
+    contentType = 'text/html'
+  } else {
+    const [{ data: eventRow }, { data: settings }] = await Promise.all([
+      supabase.from('events').select('name').eq('id', eventId).single(),
+      supabase.from('event_settings').select('accent_color, logo_storage_path').eq('event_id', eventId).single()
+    ])
+
+    let logoBuffer: Buffer | null = null
+    if (settings?.logo_storage_path) {
+      const { data: logoBlob } = await supabase.storage.from('event-branding').download(settings.logo_storage_path)
+      if (logoBlob) logoBuffer = Buffer.from(await logoBlob.arrayBuffer())
+    }
+
+    content = await buildReportPdf(reportData, {
+      accentColor: settings?.accent_color ?? null,
+      logoBuffer,
+      eventName: eventRow?.name ?? 'Event'
+    })
+    contentType = 'application/pdf'
+  }
+
   const storagePath = `${eventId}/${report.id}.${formatValue}`
 
   const { error: uploadError } = await supabase.storage

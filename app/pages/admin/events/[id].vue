@@ -357,7 +357,7 @@ function toggleRevisions(questionId: string) {
 interface ReportRow {
   id: string
   reportType: 'combined' | 'topic_by_topic'
-  format: 'csv' | 'html'
+  format: 'csv' | 'html' | 'pdf'
   generatedByEmail: string | null
   createdAt: string
   url: string | null
@@ -381,11 +381,12 @@ const reportTypeOptions = [
 ]
 const reportFormatOptions = [
   { label: 'CSV', value: 'csv' },
-  { label: 'Printable HTML', value: 'html' }
+  { label: 'Printable HTML', value: 'html' },
+  { label: 'Branded PDF', value: 'pdf' }
 ]
 
 const selectedReportType = ref<'combined' | 'topic_by_topic'>('combined')
-const selectedReportFormat = ref<'csv' | 'html'>('csv')
+const selectedReportFormat = ref<'csv' | 'html' | 'pdf'>('csv')
 const reports = ref<ReportRow[]>([])
 const reportsError = ref<string | null>(null)
 const generatingReport = ref(false)
