@@ -32,6 +32,9 @@ async function logout() {
       <NuxtLink to="/admin/events/new">
         Create Event
       </NuxtLink>
+      <NuxtLink to="/admin/events/restore">
+        Restore from Backup
+      </NuxtLink>
       <NuxtLink to="/admin/event-managers">
         Event Managers
       </NuxtLink>
