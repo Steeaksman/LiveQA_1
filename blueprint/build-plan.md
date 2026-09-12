@@ -131,7 +131,7 @@ cleaned-up checkbox version before generating the project overview.
 
 **Admin oversight & reporting**
 
-- [ ] 31. **Live admin dashboard** - active attendees/moderators, question counts by state, top-voted question, current topic, submission/voting state, updating live
+- [x] 31. **Live admin dashboard** - active attendees/moderators, question counts by state, top-voted question, current topic, submission/voting state, updating live
 - [ ] 32. **Administrative audit log** - major admin/Event Manager actions, excluding routine moderator activity
 - [ ] 33. **Question edit history & soft delete** - admin-only wording edits with revision history; soft delete everywhere with restore and confirmed permanent delete
 - [ ] 34. **Event reporting & export** - combined or topic-by-topic report, chosen at generation time, exported as CSV, printable HTML, and branded PDF

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { AuthenticatedProfile } from '~/composables/useAuthSession'
+import type { RealtimeChannel } from '@supabase/supabase-js'
 
 definePageMeta({ middleware: 'admin' })
 
@@ -14,7 +15,7 @@ const supabase = useSupabase()
 
 const loading = ref(true)
 const notFound = ref(false)
-const activeTab = ref<'details' | 'attendee-types' | 'settings' | 'qr-codes' | 'signage' | 'branding'>('details')
+const activeTab = ref<'dashboard' | 'details' | 'attendee-types' | 'settings' | 'qr-codes' | 'signage' | 'branding'>('details')
 
 const profile = ref<AuthenticatedProfile | null>(null)
 const duplicating = ref(false)
@@ -100,6 +101,92 @@ const logoUploadError = ref<string | null>(null)
 
 const audienceUrl = computed(() => `${location.origin}/e/${slug.value}`)
 const moderatorUrl = computed(() => `${location.origin}/m/${slug.value}`)
+
+interface DashboardData {
+  pendingCount: number
+  approvedCount: number
+  rejectedCount: number
+  publicCount: number
+  answeredCount: number
+  archivedCount: number
+  topVotedQuestion: { id: string, text: string, voteCount: number } | null
+  currentTopic: { name: string } | null
+}
+
+interface DashboardResponse {
+  success: boolean
+  data: DashboardData | null
+  error: string | null
+}
+
+const dashboardData = ref<DashboardData | null>(null)
+const dashboardError = ref<string | null>(null)
+const activeAttendeeCount = ref(0)
+const activeModeratorCount = ref(0)
+let dashboardPollTimer: ReturnType<typeof setInterval> | undefined
+let dashboardPresenceChannel: RealtimeChannel | undefined
+
+async function fetchDashboard() {
+  const { data: { session } } = await supabase.auth.getSession()
+  if (!session) return
+
+  try {
+    const response = await $fetch<DashboardResponse>(`/api/admin/events/${eventId}/dashboard`, {
+      headers: { Authorization: `Bearer ${session.access_token}` }
+    })
+
+    if (response.success) {
+      dashboardData.value = response.data
+    } else {
+      dashboardError.value = response.error ?? 'Something went wrong. Please try again.'
+    }
+  } catch {
+    dashboardError.value = 'Something went wrong. Please try again.'
+  }
+}
+
+function updateDashboardPresenceCounts() {
+  if (!dashboardPresenceChannel) return
+  const presences = Object.values(dashboardPresenceChannel.presenceState()).flat() as { role?: string }[]
+  activeAttendeeCount.value = presences.filter(p => p.role === 'attendee').length
+  activeModeratorCount.value = presences.filter(p => p.role === 'moderator').length
+}
+
+function startDashboardLiveUpdates() {
+  dashboardError.value = null
+  fetchDashboard()
+  dashboardPollTimer = setInterval(fetchDashboard, 15000)
+
+  dashboardPresenceChannel = supabase
+    .channel(`event:${eventId}:questions`)
+    .on('presence', { event: 'sync' }, updateDashboardPresenceCounts)
+    .on('presence', { event: 'join' }, updateDashboardPresenceCounts)
+    .on('presence', { event: 'leave' }, updateDashboardPresenceCounts)
+    .subscribe()
+}
+
+function stopDashboardLiveUpdates() {
+  if (dashboardPollTimer) {
+    clearInterval(dashboardPollTimer)
+    dashboardPollTimer = undefined
+  }
+  if (dashboardPresenceChannel) {
+    supabase.removeChannel(dashboardPresenceChannel)
+    dashboardPresenceChannel = undefined
+  }
+  activeAttendeeCount.value = 0
+  activeModeratorCount.value = 0
+}
+
+watch(activeTab, (value) => {
+  if (value === 'dashboard') {
+    startDashboardLiveUpdates()
+  } else {
+    stopDashboardLiveUpdates()
+  }
+})
+
+onUnmounted(stopDashboardLiveUpdates)
 
 onMounted(async () => {
   profile.value = await getAuthenticatedProfile(supabase)
@@ -632,6 +719,11 @@ async function removeBrandingLogo(slot: 'logo' | 'sponsor_logo') {
 
       <div class="mb-4 flex gap-2">
         <UButton
+          :variant="activeTab === 'dashboard' ? 'solid' : 'ghost'"
+          label="Dashboard"
+          @click="activeTab = 'dashboard'"
+        />
+        <UButton
           :variant="activeTab === 'details' ? 'solid' : 'ghost'"
           label="Details"
           @click="activeTab = 'details'"
@@ -663,7 +755,37 @@ async function removeBrandingLogo(slot: 'logo' | 'sponsor_logo') {
         />
       </div>
 
-      <UCard v-if="activeTab === 'details'">
+      <UCard v-if="activeTab === 'dashboard'">
+        <div class="flex flex-col gap-3">
+          <UAlert v-if="dashboardError" color="error" variant="subtle" :title="dashboardError" />
+          <div class="flex gap-4">
+            <p>Active attendees: {{ activeAttendeeCount }}</p>
+            <p>Active moderators: {{ activeModeratorCount }}</p>
+          </div>
+          <div v-if="dashboardData" class="flex flex-col gap-1">
+            <p>Pending: {{ dashboardData.pendingCount }}</p>
+            <p>Approved: {{ dashboardData.approvedCount }}</p>
+            <p>Rejected: {{ dashboardData.rejectedCount }}</p>
+            <p>Public: {{ dashboardData.publicCount }}</p>
+            <p>Answered: {{ dashboardData.answeredCount }}</p>
+            <p>Archived: {{ dashboardData.archivedCount }}</p>
+            <p>
+              Top-voted question:
+              <template v-if="dashboardData.topVotedQuestion">
+                "{{ dashboardData.topVotedQuestion.text }}" ({{ dashboardData.topVotedQuestion.voteCount }} votes)
+              </template>
+              <template v-else>
+                No votes yet.
+              </template>
+            </p>
+            <p>Current topic: {{ dashboardData.currentTopic?.name ?? 'None set.' }}</p>
+            <p>Submissions open: {{ submissionsOpen ? 'Yes' : 'No' }}</p>
+            <p>Voting open: {{ votingOpen ? 'Yes' : 'No' }}</p>
+          </div>
+        </div>
+      </UCard>
+
+      <UCard v-else-if="activeTab === 'details'">
         <div class="flex flex-col gap-3">
           <UFormField label="Event name" required>
             <UInput v-model="name" />
