@@ -15,16 +15,16 @@ export default defineEventHandler(async (event) => {
 
   const supabase = useSupabaseServiceRole()
 
-  const { data: questions } = await supabase
+  const { data: allQuestions } = await supabase
     .from('questions')
-    .select('id, text, created_at, attendee_id, approval_status, visibility, answered, archived')
+    .select('id, text, created_at, attendee_id, approval_status, visibility, answered, archived, deleted_at')
     .eq('event_id', eventId)
-    .is('deleted_at', null)
     .order('created_at', { ascending: false })
 
-  const questionIds = (questions ?? []).map(q => q.id)
+  const questions = allQuestions ?? []
+  const questionIds = questions.map(q => q.id)
 
-  const attendeeIds = [...new Set((questions ?? []).map(q => q.attendee_id))]
+  const attendeeIds = [...new Set(questions.map(q => q.attendee_id))]
 
   const { data: submitters } = await supabase
     .from('attendees')
@@ -61,7 +61,7 @@ export default defineEventHandler(async (event) => {
     revisionsByQuestionId.set(r.question_id, list)
   }
 
-  const result = (questions ?? []).map(q => ({
+  const toRow = (q: typeof questions[number]) => ({
     id: q.id,
     text: q.text,
     createdAt: q.created_at,
@@ -71,7 +71,10 @@ export default defineEventHandler(async (event) => {
     archived: q.archived,
     displayName: submitterNameById.get(q.attendee_id) ?? null,
     revisions: revisionsByQuestionId.get(q.id) ?? []
-  }))
+  })
 
-  return { success: true, data: { questions: result }, error: null }
+  const result = questions.filter(q => !q.deleted_at).map(toRow)
+  const deletedResult = questions.filter(q => q.deleted_at).map(toRow)
+
+  return { success: true, data: { questions: result, deletedQuestions: deletedResult }, error: null }
 })

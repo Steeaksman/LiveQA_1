@@ -214,7 +214,7 @@ interface AdminQuestionRow {
 
 interface QuestionsResponse {
   success: boolean
-  data: { questions: AdminQuestionRow[] } | null
+  data: { questions: AdminQuestionRow[], deletedQuestions: AdminQuestionRow[] } | null
   error: string | null
 }
 
@@ -224,12 +224,20 @@ interface EditQuestionResponse {
   error: string | null
 }
 
+interface QuestionActionResponse {
+  success: boolean
+  data: { questionId: string } | null
+  error: string | null
+}
+
 const questions = ref<AdminQuestionRow[]>([])
+const deletedQuestions = ref<AdminQuestionRow[]>([])
 const questionsError = ref<string | null>(null)
 const editingQuestionId = ref<string | null>(null)
 const editingText = ref('')
 const savingQuestionId = ref<string | null>(null)
 const expandedRevisionsId = ref<string | null>(null)
+const questionActionId = ref<string | null>(null)
 
 async function fetchQuestions() {
   const { data: { session } } = await supabase.auth.getSession()
@@ -242,12 +250,58 @@ async function fetchQuestions() {
 
     if (response.success && response.data) {
       questions.value = response.data.questions
+      deletedQuestions.value = response.data.deletedQuestions
     } else {
       questionsError.value = response.error ?? 'Something went wrong. Please try again.'
     }
   } catch {
     questionsError.value = 'Something went wrong. Please try again.'
   }
+}
+
+async function performQuestionAction(routeName: 'soft-delete' | 'restore' | 'permanent-delete', questionId: string) {
+  questionsError.value = null
+  questionActionId.value = questionId
+
+  try {
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session) {
+      questionsError.value = 'Your session expired. Please log in again.'
+      return
+    }
+
+    const response = await $fetch<QuestionActionResponse>(`/api/admin/events/${eventId}/questions/${routeName}`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${session.access_token}` },
+      body: { questionId }
+    })
+
+    if (!response.success) {
+      questionsError.value = response.error ?? 'Something went wrong. Please try again.'
+      return
+    }
+
+    await fetchQuestions()
+  } catch (err) {
+    const data = (err as { data?: QuestionActionResponse })?.data
+    questionsError.value = data?.error ?? 'Something went wrong. Please try again.'
+  } finally {
+    questionActionId.value = null
+  }
+}
+
+function deleteQuestion(questionId: string) {
+  performQuestionAction('soft-delete', questionId)
+}
+
+function restoreQuestion(questionId: string) {
+  performQuestionAction('restore', questionId)
+}
+
+function permanentlyDeleteQuestion(question: AdminQuestionRow) {
+  const confirmed = window.confirm(`Permanently delete "${question.text}"? This cannot be undone.`)
+  if (!confirmed) return
+  performQuestionAction('permanent-delete', question.id)
 }
 
 function startEditingQuestion(question: AdminQuestionRow) {
@@ -936,9 +990,60 @@ async function removeBrandingLogo(slot: 'logo' | 'sponsor_logo') {
               No edits yet.
             </p>
           </div>
+
+          <div class="mt-2 flex gap-2">
+            <UButton
+              size="xs"
+              color="error"
+              variant="ghost"
+              label="Delete"
+              :loading="questionActionId === question.id"
+              @click="deleteQuestion(question.id)"
+            />
+            <UButton
+              size="xs"
+              color="error"
+              variant="ghost"
+              label="Permanently delete"
+              :loading="questionActionId === question.id"
+              @click="permanentlyDeleteQuestion(question)"
+            />
+          </div>
         </UCard>
         <p v-if="questions.length === 0" class="text-sm text-gray-500">
           No questions yet.
+        </p>
+
+        <h2 class="mt-4 font-medium">
+          Deleted questions
+        </h2>
+        <UCard v-for="question in deletedQuestions" :key="question.id">
+          <p class="text-sm text-gray-500">
+            {{ question.displayName ?? 'Anonymous' }} -
+            {{ question.approvalStatus }} - {{ question.visibility }}
+          </p>
+          <p class="mt-2">
+            {{ question.text }}
+          </p>
+          <div class="mt-2 flex gap-2">
+            <UButton
+              size="xs"
+              label="Restore"
+              :loading="questionActionId === question.id"
+              @click="restoreQuestion(question.id)"
+            />
+            <UButton
+              size="xs"
+              color="error"
+              variant="ghost"
+              label="Permanently delete"
+              :loading="questionActionId === question.id"
+              @click="permanentlyDeleteQuestion(question)"
+            />
+          </div>
+        </UCard>
+        <p v-if="deletedQuestions.length === 0" class="text-sm text-gray-500">
+          No deleted questions.
         </p>
       </div>
 
