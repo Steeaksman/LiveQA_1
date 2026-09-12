@@ -15,7 +15,7 @@ const supabase = useSupabase()
 
 const loading = ref(true)
 const notFound = ref(false)
-const activeTab = ref<'dashboard' | 'questions' | 'reports' | 'details' | 'attendee-types' | 'settings' | 'qr-codes' | 'signage' | 'branding'>('details')
+const activeTab = ref<'dashboard' | 'questions' | 'reports' | 'backup' | 'details' | 'attendee-types' | 'settings' | 'qr-codes' | 'signage' | 'branding'>('details')
 
 const profile = ref<AuthenticatedProfile | null>(null)
 const duplicating = ref(false)
@@ -442,6 +442,47 @@ async function generateReport() {
     reportsError.value = data?.error ?? 'Something went wrong. Please try again.'
   } finally {
     generatingReport.value = false
+  }
+}
+
+interface ExportResponse {
+  success: boolean
+  data: Record<string, unknown> | null
+  error: string | null
+}
+
+const backupError = ref<string | null>(null)
+const downloadingBackup = ref(false)
+
+async function downloadBackup() {
+  backupError.value = null
+  downloadingBackup.value = true
+
+  try {
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session) {
+      backupError.value = 'Your session expired. Please log in again.'
+      return
+    }
+
+    const response = await $fetch<ExportResponse>(`/api/admin/events/${eventId}/export`, {
+      headers: { Authorization: `Bearer ${session.access_token}` }
+    })
+
+    if (!response.success || !response.data) {
+      backupError.value = response.error ?? 'Something went wrong. Please try again.'
+      return
+    }
+
+    const json = JSON.stringify(response.data, null, 2)
+    const dataUrl = `data:application/json;charset=utf-8,${encodeURIComponent(json)}`
+    const date = new Date().toISOString().slice(0, 10)
+    downloadDataUrl(dataUrl, `${slug.value}-backup-${date}.json`)
+  } catch (err) {
+    const data = (err as { data?: ExportResponse })?.data
+    backupError.value = data?.error ?? 'Something went wrong. Please try again.'
+  } finally {
+    downloadingBackup.value = false
   }
 }
 
@@ -991,6 +1032,11 @@ async function removeBrandingLogo(slot: 'logo' | 'sponsor_logo') {
           @click="activeTab = 'reports'"
         />
         <UButton
+          :variant="activeTab === 'backup' ? 'solid' : 'ghost'"
+          label="Backup"
+          @click="activeTab = 'backup'"
+        />
+        <UButton
           :variant="activeTab === 'details' ? 'solid' : 'ghost'"
           label="Details"
           @click="activeTab = 'details'"
@@ -1175,6 +1221,16 @@ async function removeBrandingLogo(slot: 'logo' | 'sponsor_logo') {
           No reports generated yet.
         </p>
       </div>
+
+      <UCard v-else-if="activeTab === 'backup'">
+        <div class="flex flex-col gap-3">
+          <p class="text-sm text-gray-500">
+            Download a JSON backup of this event's configuration, attendee types, topics, questions, replies, votes, attendees, and report metadata.
+          </p>
+          <UAlert v-if="backupError" color="error" variant="subtle" :title="backupError" />
+          <UButton :loading="downloadingBackup" label="Download backup" class="self-start" @click="downloadBackup" />
+        </div>
+      </UCard>
 
       <UCard v-else-if="activeTab === 'details'">
         <div class="flex flex-col gap-3">
