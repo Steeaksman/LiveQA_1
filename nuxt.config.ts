@@ -17,9 +17,11 @@ export default defineNuxtConfig({
   },
   runtimeConfig: {
     supabaseServiceRoleKey: '',
+    turnstileSecretKey: '',
     public: {
       supabaseUrl: '',
-      supabaseAnonKey: ''
+      supabaseAnonKey: '',
+      turnstileSiteKey: ''
     }
   }
 })

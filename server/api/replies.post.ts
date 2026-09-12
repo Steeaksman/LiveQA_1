@@ -2,12 +2,14 @@ import { defineEventHandler, readBody, setResponseStatus } from 'h3'
 import { useSupabaseServiceRole } from '../utils/supabase'
 import { enforceSubmissionRateLimit } from '../utils/enforce-abuse-protection'
 import { containsBlockedTerm } from '../utils/check-blocked-terms'
+import { verifyTurnstileToken } from '../utils/verify-turnstile-token'
 
 interface SubmitReplyBody {
   eventId?: string
   token?: string
   questionId?: string
   text?: string
+  turnstileToken?: string
 }
 
 const EVENT_NOT_FOUND_ERROR = 'Event not found.'
@@ -15,6 +17,7 @@ const SUBMISSIONS_CLOSED_ERROR = 'Submissions are currently closed.'
 const NOT_JOINED_ERROR = 'Please join the event before replying.'
 const QUESTION_NOT_FOUND_ERROR = 'Question not found.'
 const TEXT_REQUIRED_ERROR = 'Please enter a reply.'
+const CAPTCHA_FAILED_ERROR = 'Please complete the verification challenge and try again.'
 const GENERIC_ERROR = 'Something went wrong. Please try again.'
 
 export default defineEventHandler(async (event) => {
@@ -84,6 +87,11 @@ export default defineEventHandler(async (event) => {
   if (!rateLimitResult.allowed) {
     setResponseStatus(event, 429)
     return { success: false, data: null, error: rateLimitResult.error }
+  }
+
+  if (settings?.abuse_protection_tier === 'strict' && !(await verifyTurnstileToken(body?.turnstileToken))) {
+    setResponseStatus(event, 400)
+    return { success: false, data: null, error: CAPTCHA_FAILED_ERROR }
   }
 
   const questionMaxLength = settings?.question_max_length ?? 500

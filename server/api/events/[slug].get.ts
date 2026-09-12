@@ -23,7 +23,7 @@ export default defineEventHandler(async (event) => {
   const [settingsResult, attendeeTypesResult] = await Promise.all([
     supabase
       .from('event_settings')
-      .select('welcome_text, accent_color, background_color, theme_mode, require_attendee_name, require_attendee_type, moderation_mode, question_max_length, duplicate_check_strictness, anonymity_mode, attachment_max_count, attachment_max_size_bytes')
+      .select('welcome_text, accent_color, background_color, theme_mode, require_attendee_name, require_attendee_type, moderation_mode, question_max_length, duplicate_check_strictness, anonymity_mode, attachment_max_count, attachment_max_size_bytes, abuse_protection_tier')
       .eq('event_id', found.id)
       .single(),
     supabase
@@ -54,7 +54,8 @@ export default defineEventHandler(async (event) => {
       duplicateCheckStrictness: settings?.duplicate_check_strictness ?? 'off',
       anonymityMode: settings?.anonymity_mode ?? 'always',
       attachmentMaxCount: settings?.attachment_max_count ?? 0,
-      attachmentMaxSizeBytes: settings?.attachment_max_size_bytes ?? 5242880
+      attachmentMaxSizeBytes: settings?.attachment_max_size_bytes ?? 5242880,
+      captchaRequired: settings?.abuse_protection_tier === 'strict'
     },
     error: null
   }

@@ -22,6 +22,7 @@ interface EventContext {
   anonymityMode: 'named' | 'optional' | 'always'
   attachmentMaxCount: number
   attachmentMaxSizeBytes: number
+  captchaRequired: boolean
 }
 
 interface EventContextResponse {
@@ -187,6 +188,24 @@ const joinErrorField = ref<'name' | 'attendeeType' | null>(null)
 
 const connectionStatus = ref<'connected' | 'reconnecting'>('reconnecting')
 
+const turnstile = useTurnstile()
+const turnstileContainer = ref<HTMLElement | null>(null)
+let turnstileRendered = false
+
+watch(
+  [() => context.value?.captchaRequired, joined, () => context.value?.submissionsOpen, turnstileContainer],
+  ([captchaRequired, isJoined, submissionsOpen, container]) => {
+    if (captchaRequired && isJoined && submissionsOpen && container && !turnstileRendered) {
+      const siteKey = useRuntimeConfig().public.turnstileSiteKey
+      if (siteKey) {
+        turnstileRendered = true
+        turnstile.render(container, siteKey)
+      }
+    }
+  },
+  { immediate: true }
+)
+
 onMounted(() => {
   if (context.value) {
     const identity = getDeviceIdentity(context.value.id)
@@ -345,7 +364,8 @@ async function submitQuestion() {
         eventId: context.value.id,
         token: identity.token,
         text: questionText.value.trim(),
-        anonymous: askAnonymously.value
+        anonymous: askAnonymously.value,
+        turnstileToken: turnstile.token.value ?? undefined
       }
     })
 
@@ -366,6 +386,7 @@ async function submitQuestion() {
     submitError.value = data?.error ?? 'Something went wrong. Please try again.'
   } finally {
     submitting.value = false
+    turnstile.reset()
   }
 }
 
@@ -499,7 +520,8 @@ async function submitReply(questionId: string) {
         eventId: context.value.id,
         token: identity.token,
         questionId,
-        text
+        text,
+        turnstileToken: turnstile.token.value ?? undefined
       }
     })
 
@@ -515,6 +537,7 @@ async function submitReply(questionId: string) {
     replyError.value = data?.error ?? 'Something went wrong. Please try again.'
   } finally {
     submittingReplyQuestionId.value = null
+    turnstile.reset()
   }
 }
 
@@ -695,9 +718,16 @@ async function uploadAttachment(questionId: string) {
                 "{{ similar.text }}"
               </p>
             </div>
+            <div v-if="context.captchaRequired" ref="turnstileContainer" />
             <UAlert v-if="submitError && !submitErrorField" color="error" variant="subtle" :title="submitError" />
             <UAlert v-if="submitConfirmation" color="success" variant="subtle" :title="submitConfirmation" />
-            <UButton :loading="submitting" label="Submit" class="self-start" @click="submitQuestion" />
+            <UButton
+              :loading="submitting"
+              :disabled="context.captchaRequired && !turnstile.token.value"
+              label="Submit"
+              class="self-start"
+              @click="submitQuestion"
+            />
           </template>
         </div>
       </UCard>
