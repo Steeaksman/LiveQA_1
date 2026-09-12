@@ -1,6 +1,7 @@
 import { defineEventHandler, readBody, setResponseStatus } from 'h3'
 import { useSupabaseServiceRole } from '../utils/supabase'
 import { enforceSubmissionRateLimit } from '../utils/enforce-abuse-protection'
+import { containsBlockedTerm } from '../utils/check-blocked-terms'
 
 interface SubmitReplyBody {
   eventId?: string
@@ -96,6 +97,11 @@ export default defineEventHandler(async (event) => {
   if (text.length > questionMaxLength) {
     setResponseStatus(event, 400)
     return { success: false, data: null, error: `Your reply is too long (max ${questionMaxLength} characters).` }
+  }
+
+  if (await containsBlockedTerm(text)) {
+    setResponseStatus(event, 400)
+    return { success: false, data: null, error: 'Your reply could not be submitted. Please rephrase and try again.' }
   }
 
   const isImmediate = settings?.moderation_mode === 'immediate'

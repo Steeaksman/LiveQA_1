@@ -38,6 +38,9 @@ async function logout() {
       <NuxtLink to="/admin/templates">
         Templates
       </NuxtLink>
+      <NuxtLink to="/admin/blocked-terms">
+        Blocked Terms
+      </NuxtLink>
     </template>
     <UButton label="Log out" @click="logout" />
   </div>
