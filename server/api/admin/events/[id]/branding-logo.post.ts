@@ -1,6 +1,7 @@
 import { defineEventHandler, getRouterParam, readMultipartFormData, setResponseStatus } from 'h3'
 import { verifyEventAccess } from '../../../../utils/verify-event-access'
 import { useSupabaseServiceRole } from '../../../../utils/supabase'
+import { logAuditAction } from '../../../../utils/log-audit-action'
 
 const NOT_AUTHORIZED_ERROR = 'Not authorized.'
 const INVALID_SLOT_ERROR = 'Invalid logo slot.'
@@ -94,6 +95,8 @@ export default defineEventHandler(async (event) => {
   const { data: signed } = await supabase.storage
     .from(BUCKET)
     .createSignedUrl(storagePath, SIGNED_URL_TTL_SECONDS)
+
+  await logAuditAction(callerId, 'branding_logo_uploaded', eventId, { slot: slotValue })
 
   return { success: true, data: { url: signed?.signedUrl ?? null }, error: null }
 })

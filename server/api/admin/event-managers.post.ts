@@ -1,6 +1,7 @@
 import { defineEventHandler, readBody, setResponseStatus } from 'h3'
 import { verifyAdministrator } from '../../utils/verify-administrator'
 import { useSupabaseServiceRole } from '../../utils/supabase'
+import { logAuditAction } from '../../utils/log-audit-action'
 
 interface CreateEventManagerBody {
   email?: string
@@ -64,6 +65,8 @@ export default defineEventHandler(async (event) => {
       return { success: false, data: null, error: `Account created, but event assignment failed: ${assignmentError.message}` }
     }
   }
+
+  await logAuditAction(administratorId, 'event_manager_created', null, { eventManagerId: created.user.id, email, scope })
 
   return { success: true, data: { id: created.user.id, email }, error: null }
 })

@@ -1,6 +1,6 @@
 # LiveQA_1 - Project Overview
 
-<!-- blueprint:source-hash 46df090ee7502df4412d4cf3fb59603eee65789eea6dd08bd56206cc9e06a8f4 -->
+<!-- blueprint:source-hash c82ef05257a53f6dda967af9deed488fe2e689f37e0731912561a7ab9f292b9d -->
 
 > An original live audience Q&A app for conferences and similar events:
 > attendees **Scan → Join → Ask → Vote** from their phones; moderators

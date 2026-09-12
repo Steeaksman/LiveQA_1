@@ -132,7 +132,7 @@ cleaned-up checkbox version before generating the project overview.
 **Admin oversight & reporting**
 
 - [x] 31. **Live admin dashboard** - active attendees/moderators, question counts by state, top-voted question, current topic, submission/voting state, updating live
-- [ ] 32. **Administrative audit log** - major admin/Event Manager actions, excluding routine moderator activity
+- [x] 32. **Administrative audit log** - major admin/Event Manager actions, excluding routine moderator activity
 - [ ] 33. **Question edit history & soft delete** - admin-only wording edits with revision history; soft delete everywhere with restore and confirmed permanent delete
 - [ ] 34. **Event reporting & export** - combined or topic-by-topic report, chosen at generation time, exported as CSV, printable HTML, and branded PDF
 - [ ] 35. **Data export/backup tool** - admin export of event configuration, attendee types, topics, questions, replies, votes, and reports in a structured, restorable format
@@ -146,6 +146,7 @@ cleaned-up checkbox version before generating the project overview.
 - [ ] 40. **Load testing** - simulate ~100 then ~150-200 concurrent clients with rapid voting/question bursts and document latency, errors, and Realtime behavior
 - [ ] 41. **SiteGround deployment configuration** - GitHub-connected Node.js Project, confirmed build/start settings, environment variables, production subdomain, DNS, and SSL
 - [ ] 42. **CAPTCHA integration** - split out of Feature 30 because no provider is named anywhere in the plans; pick a provider (e.g. hCaptcha, Cloudflare Turnstile) and wire it into attendee submission as the optional Strict-tier challenge Feature 30's own build-plan line named but never specified
+- [ ] 43. **Server-route conversion for full admin/Event Manager audit coverage** - split out of Feature 32 because most admin/Event Manager mutations (event details/settings/branding-color saves, event duplication, Event Manager scope changes/revocation/assignments) are direct client-side Supabase calls gated by RLS today, with no server-side interception point for an audit-log write; only moderator password rotation, branding logo upload/remove, and Event Manager creation already route through a server route and got audit logging in Feature 32. Convert the remaining direct-client admin/Event Manager mutations to service-role server routes and add an audit-log write to each, completing project-plan.md's full "major actions" list (event CRUD, settings changes, duplication, Event Manager permission changes).
 
 ## Post-MVP (documented, not built now)
 

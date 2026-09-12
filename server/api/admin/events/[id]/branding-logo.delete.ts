@@ -1,6 +1,7 @@
 import { defineEventHandler, getRouterParam, readBody, setResponseStatus } from 'h3'
 import { verifyEventAccess } from '../../../../utils/verify-event-access'
 import { useSupabaseServiceRole } from '../../../../utils/supabase'
+import { logAuditAction } from '../../../../utils/log-audit-action'
 
 interface RemoveBrandingLogoBody {
   slot?: string
@@ -66,6 +67,8 @@ export default defineEventHandler(async (event) => {
     setResponseStatus(event, 500)
     return { success: false, data: null, error: GENERIC_ERROR }
   }
+
+  await logAuditAction(callerId, 'branding_logo_removed', eventId, { slot: slotValue })
 
   return { success: true, data: null, error: null }
 })
