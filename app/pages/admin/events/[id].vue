@@ -26,6 +26,7 @@ const slug = ref('')
 const joinCode = ref('')
 const status = ref('')
 const detailsError = ref<string | null>(null)
+const detailsErrorField = ref<'name' | null>(null)
 const slugError = ref<string | null>(null)
 const joinCodeError = ref<string | null>(null)
 const savingDetails = ref(false)
@@ -71,6 +72,7 @@ const abuseProtectionOptions = [
 ]
 const abuseProtectionTier = ref<'open' | 'standard' | 'strict'>('standard')
 const settingsError = ref<string | null>(null)
+const settingsErrorField = ref<'questionMaxLength' | 'attendeeEditWindow' | 'attachmentMaxCount' | 'attachmentMaxSize' | null>(null)
 const savingSettings = ref(false)
 
 const moderatorPassword = ref('')
@@ -668,11 +670,13 @@ onMounted(async () => {
 
 async function saveDetails() {
   detailsError.value = null
+  detailsErrorField.value = null
   slugError.value = null
   joinCodeError.value = null
 
   if (!name.value.trim()) {
     detailsError.value = 'Name is required.'
+    detailsErrorField.value = 'name'
     return
   }
 
@@ -839,24 +843,29 @@ async function removeAttendeeType(id: string) {
 
 async function saveSettings() {
   settingsError.value = null
+  settingsErrorField.value = null
 
   if (!Number.isInteger(questionMaxLength.value) || questionMaxLength.value <= 0) {
     settingsError.value = 'Max question length must be a positive whole number.'
+    settingsErrorField.value = 'questionMaxLength'
     return
   }
 
   if (!Number.isInteger(attendeeEditWindowMinutes.value) || attendeeEditWindowMinutes.value < 0) {
     settingsError.value = 'Attendee edit window must be a whole number of minutes, 0 or more.'
+    settingsErrorField.value = 'attendeeEditWindow'
     return
   }
 
   if (!Number.isInteger(attachmentMaxCount.value) || attachmentMaxCount.value < 0) {
     settingsError.value = 'Max attachments per question must be a whole number, 0 or more.'
+    settingsErrorField.value = 'attachmentMaxCount'
     return
   }
 
   if (!Number.isInteger(attachmentMaxSizeBytes.value) || attachmentMaxSizeBytes.value < 0) {
     settingsError.value = 'Max attachment size must be a whole number of bytes, 0 or more.'
+    settingsErrorField.value = 'attachmentMaxSize'
     return
   }
 
@@ -1127,56 +1136,67 @@ async function removeBrandingLogo(slot: 'logo' | 'sponsor_logo') {
       <div class="mb-4 flex gap-2">
         <UButton
           :variant="activeTab === 'dashboard' ? 'solid' : 'ghost'"
+          :aria-current="activeTab === 'dashboard' ? 'true' : undefined"
           label="Dashboard"
           @click="activeTab = 'dashboard'"
         />
         <UButton
           :variant="activeTab === 'questions' ? 'solid' : 'ghost'"
+          :aria-current="activeTab === 'questions' ? 'true' : undefined"
           label="Questions"
           @click="activeTab = 'questions'"
         />
         <UButton
           :variant="activeTab === 'reports' ? 'solid' : 'ghost'"
+          :aria-current="activeTab === 'reports' ? 'true' : undefined"
           label="Reports"
           @click="activeTab = 'reports'"
         />
         <UButton
           :variant="activeTab === 'backup' ? 'solid' : 'ghost'"
+          :aria-current="activeTab === 'backup' ? 'true' : undefined"
           label="Backup"
           @click="activeTab = 'backup'"
         />
         <UButton
           :variant="activeTab === 'readiness' ? 'solid' : 'ghost'"
+          :aria-current="activeTab === 'readiness' ? 'true' : undefined"
           label="Readiness"
           @click="activeTab = 'readiness'"
         />
         <UButton
           :variant="activeTab === 'details' ? 'solid' : 'ghost'"
+          :aria-current="activeTab === 'details' ? 'true' : undefined"
           label="Details"
           @click="activeTab = 'details'"
         />
         <UButton
           :variant="activeTab === 'attendee-types' ? 'solid' : 'ghost'"
+          :aria-current="activeTab === 'attendee-types' ? 'true' : undefined"
           label="Attendee types"
           @click="activeTab = 'attendee-types'"
         />
         <UButton
           :variant="activeTab === 'settings' ? 'solid' : 'ghost'"
+          :aria-current="activeTab === 'settings' ? 'true' : undefined"
           label="Settings"
           @click="activeTab = 'settings'"
         />
         <UButton
           :variant="activeTab === 'qr-codes' ? 'solid' : 'ghost'"
+          :aria-current="activeTab === 'qr-codes' ? 'true' : undefined"
           label="QR codes"
           @click="activeTab = 'qr-codes'"
         />
         <UButton
           :variant="activeTab === 'signage' ? 'solid' : 'ghost'"
+          :aria-current="activeTab === 'signage' ? 'true' : undefined"
           label="Signage"
           @click="activeTab = 'signage'"
         />
         <UButton
           :variant="activeTab === 'branding' ? 'solid' : 'ghost'"
+          :aria-current="activeTab === 'branding' ? 'true' : undefined"
           label="Branding"
           @click="activeTab = 'branding'"
         />
@@ -1189,7 +1209,7 @@ async function removeBrandingLogo(slot: 'logo' | 'sponsor_logo') {
             <p>Active attendees: {{ activeAttendeeCount }}</p>
             <p>Active moderators: {{ activeModeratorCount }}</p>
           </div>
-          <div v-if="dashboardData" class="flex flex-col gap-1">
+          <div v-if="dashboardData" class="flex flex-col gap-1" role="status">
             <p>Pending: {{ dashboardData.pendingCount }}</p>
             <p>Approved: {{ dashboardData.approvedCount }}</p>
             <p>Rejected: {{ dashboardData.rejectedCount }}</p>
@@ -1223,7 +1243,9 @@ async function removeBrandingLogo(slot: 'logo' | 'sponsor_logo') {
           </p>
 
           <div v-if="editingQuestionId === question.id" class="mt-2 flex flex-col gap-2">
-            <UTextarea v-model="editingText" />
+            <UFormField label="Edit question">
+              <UTextarea v-model="editingText" />
+            </UFormField>
             <div class="flex gap-2">
               <UButton size="sm" label="Save" :loading="savingQuestionId === question.id" @click="saveQuestionEdit(question.id)" />
               <UButton size="sm" variant="ghost" label="Cancel" @click="cancelEditingQuestion" />
@@ -1436,7 +1458,7 @@ async function removeBrandingLogo(slot: 'logo' | 'sponsor_logo') {
 
       <UCard v-else-if="activeTab === 'details'">
         <div class="flex flex-col gap-3">
-          <UFormField label="Event name" required>
+          <UFormField label="Event name" required :error="detailsErrorField === 'name' ? detailsError ?? undefined : undefined">
             <UInput v-model="name" />
           </UFormField>
           <UFormField label="Slug" :error="slugError ?? undefined">
@@ -1448,21 +1470,22 @@ async function removeBrandingLogo(slot: 'logo' | 'sponsor_logo') {
           <p class="text-sm text-gray-500">
             Status: {{ status }}
           </p>
-          <UAlert v-if="detailsError" color="error" variant="subtle" :title="detailsError" />
+          <UAlert v-if="detailsError && !detailsErrorField" color="error" variant="subtle" :title="detailsError" />
           <UButton :loading="savingDetails" label="Save" class="self-start" @click="saveDetails" />
         </div>
       </UCard>
 
       <UCard v-else-if="activeTab === 'attendee-types'">
-        <div class="mb-3 flex gap-2">
-          <UInput v-model="newLabel" placeholder="e.g. Student, Staff" @keyup.enter="addAttendeeType" />
-          <UButton :loading="addingLabel" label="Add" @click="addAttendeeType" />
-        </div>
-        <UAlert v-if="attendeeTypesError" color="error" variant="subtle" :title="attendeeTypesError" class="mb-3" />
+        <UFormField label="New attendee type" class="mb-3" :error="attendeeTypesError ?? undefined">
+          <div class="flex gap-2">
+            <UInput v-model="newLabel" placeholder="e.g. Student, Staff" @keyup.enter="addAttendeeType" />
+            <UButton :loading="addingLabel" label="Add" @click="addAttendeeType" />
+          </div>
+        </UFormField>
         <div class="flex flex-col gap-2">
           <div v-for="type in attendeeTypes" :key="type.id" class="flex items-center justify-between">
             <span>{{ type.label }}</span>
-            <UButton size="xs" color="error" variant="ghost" label="Remove" @click="removeAttendeeType(type.id)" />
+            <UButton size="xs" color="error" variant="ghost" label="Remove" :aria-label="`Remove attendee type: ${type.label}`" @click="removeAttendeeType(type.id)" />
           </div>
           <p v-if="attendeeTypes.length === 0" class="text-sm text-gray-500">
             No attendee types yet.
@@ -1472,7 +1495,7 @@ async function removeBrandingLogo(slot: 'logo' | 'sponsor_logo') {
 
       <UCard v-else-if="activeTab === 'settings'">
         <div class="flex flex-col gap-3">
-          <UFormField label="Max question length">
+          <UFormField label="Max question length" :error="settingsErrorField === 'questionMaxLength' ? settingsError ?? undefined : undefined">
             <UInput v-model.number="questionMaxLength" type="number" />
           </UFormField>
           <UFormField label="Moderation mode">
@@ -1480,32 +1503,32 @@ async function removeBrandingLogo(slot: 'logo' | 'sponsor_logo') {
           </UFormField>
           <div class="flex items-center justify-between">
             <span>Hide vote counts</span>
-            <USwitch v-model="hideVoteCounts" />
+            <USwitch aria-label="Hide vote counts" v-model="hideVoteCounts" />
           </div>
           <div class="flex items-center justify-between">
             <span>Submissions open</span>
-            <USwitch v-model="submissionsOpen" />
+            <USwitch aria-label="Submissions open" v-model="submissionsOpen" />
           </div>
           <div class="flex items-center justify-between">
             <span>Voting open</span>
-            <USwitch v-model="votingOpen" />
+            <USwitch aria-label="Voting open" v-model="votingOpen" />
           </div>
           <div class="flex items-center justify-between">
             <span>Moderator access enabled</span>
-            <USwitch v-model="moderatorAccessEnabled" />
+            <USwitch aria-label="Moderator access enabled" v-model="moderatorAccessEnabled" />
           </div>
           <div class="flex items-center justify-between">
             <span>Require attendee name</span>
-            <USwitch v-model="requireAttendeeName" />
+            <USwitch aria-label="Require attendee name" v-model="requireAttendeeName" />
           </div>
           <div class="flex items-center justify-between">
             <span>Require attendee type</span>
-            <USwitch v-model="requireAttendeeType" />
+            <USwitch aria-label="Require attendee type" v-model="requireAttendeeType" />
           </div>
           <UFormField label="Duplicate check strictness">
             <USelect v-model="duplicateCheckStrictness" :items="duplicateCheckOptions" value-key="value" />
           </UFormField>
-          <UFormField label="Attendee edit window (minutes, 0 = disabled)">
+          <UFormField label="Attendee edit window (minutes, 0 = disabled)" :error="settingsErrorField === 'attendeeEditWindow' ? settingsError ?? undefined : undefined">
             <UInput v-model.number="attendeeEditWindowMinutes" type="number" />
           </UFormField>
           <UFormField label="Anonymity mode">
@@ -1513,18 +1536,18 @@ async function removeBrandingLogo(slot: 'logo' | 'sponsor_logo') {
           </UFormField>
           <div class="flex items-center justify-between">
             <span>Show attendee type publicly</span>
-            <USwitch v-model="showAttendeeType" />
+            <USwitch aria-label="Show attendee type publicly" v-model="showAttendeeType" />
           </div>
-          <UFormField label="Max attachments per question (0 = disabled)">
+          <UFormField label="Max attachments per question (0 = disabled)" :error="settingsErrorField === 'attachmentMaxCount' ? settingsError ?? undefined : undefined">
             <UInput v-model.number="attachmentMaxCount" type="number" />
           </UFormField>
-          <UFormField label="Max attachment size (bytes)">
+          <UFormField label="Max attachment size (bytes)" :error="settingsErrorField === 'attachmentMaxSize' ? settingsError ?? undefined : undefined">
             <UInput v-model.number="attachmentMaxSizeBytes" type="number" />
           </UFormField>
           <UFormField label="Abuse protection">
             <USelect v-model="abuseProtectionTier" :items="abuseProtectionOptions" value-key="value" />
           </UFormField>
-          <UAlert v-if="settingsError" color="error" variant="subtle" :title="settingsError" />
+          <UAlert v-if="settingsError && !settingsErrorField" color="error" variant="subtle" :title="settingsError" />
           <UButton :loading="savingSettings" label="Save" class="self-start" @click="saveSettings" />
 
           <UFormField label="Moderator password" :error="moderatorPasswordError ?? undefined">
@@ -1564,12 +1587,12 @@ async function removeBrandingLogo(slot: 'logo' | 'sponsor_logo') {
           <UAlert v-if="logoUploadError" color="error" variant="subtle" :title="logoUploadError" />
 
           <div class="flex flex-col gap-2 border-t pt-3">
-            <span class="font-medium">Logo</span>
+            <span id="event-logo-label" class="font-medium">Logo</span>
             <img v-if="logoUrl" :src="logoUrl" alt="Event logo" class="max-h-24 max-w-xs">
             <p v-else class="text-sm text-gray-500">
               No logo set.
             </p>
-            <input type="file" accept="image/jpeg,image/png,image/gif,image/webp" @change="onLogoFileSelected('logo', $event)">
+            <input type="file" aria-labelledby="event-logo-label" accept="image/jpeg,image/png,image/gif,image/webp" @change="onLogoFileSelected('logo', $event)">
             <div class="flex gap-2">
               <UButton
                 size="sm"
@@ -1591,12 +1614,12 @@ async function removeBrandingLogo(slot: 'logo' | 'sponsor_logo') {
           </div>
 
           <div class="flex flex-col gap-2 border-t pt-3">
-            <span class="font-medium">Sponsor logo</span>
+            <span id="sponsor-logo-label" class="font-medium">Sponsor logo</span>
             <img v-if="sponsorLogoUrl" :src="sponsorLogoUrl" alt="Sponsor logo" class="max-h-24 max-w-xs">
             <p v-else class="text-sm text-gray-500">
               No logo set.
             </p>
-            <input type="file" accept="image/jpeg,image/png,image/gif,image/webp" @change="onLogoFileSelected('sponsor_logo', $event)">
+            <input type="file" aria-labelledby="sponsor-logo-label" accept="image/jpeg,image/png,image/gif,image/webp" @change="onLogoFileSelected('sponsor_logo', $event)">
             <div class="flex gap-2">
               <UButton
                 size="sm"
