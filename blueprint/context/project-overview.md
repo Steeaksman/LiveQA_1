@@ -165,10 +165,16 @@ choices that would block adding orgs/workspaces/usage limits/Stripe later.
 - **Host:** SiteGround **GoGeek**, as a SiteGround **Node.js Project**, on a
   dedicated subdomain, GitHub-connected auto-deploy (push → SiteGround build
   → Site Tools logs → replaces production).
-- **Build:** Nitro `node-server` preset. Exact Node version / package
-  manager / build & start commands get confirmed against SiteGround's
-  current supported configuration during the architecture step, then
-  documented (not re-decided per feature).
+- **Build:** Nitro `node-server` preset (pinned explicitly in
+  `nuxt.config.ts`), npm. Node **22.x or newer**, matching Nuxt 4's own
+  minimum requirement (verified against Nuxt's current docs; also
+  declared in `package.json`'s `engines.node`). Build: `npm install` then
+  `npm run build`, producing the standalone `.output/` directory. Start:
+  `node .output/server/index.mjs`, which already respects whatever
+  `PORT`/`HOST` SiteGround's Node.js Project hosting assigns (Nitro's own
+  built-in behavior - no app config needed). SSL terminates in front of the
+  Node process (SiteGround's own Site Tools layer), not inside it. See
+  `DEPLOYMENT.md` for the full operator runbook.
 - **Backend:** Supabase Free plan - ~250 total attendees, ~50-100 concurrent
   typical, several moderators, 1+ admins, possibly multiple simultaneous
   events. No artificial event-size cap; admin-visible usage guardrails +
@@ -179,9 +185,6 @@ choices that would block adding orgs/workspaces/usage limits/Stripe later.
   CORS/origin, and auth redirects all point at the production URL.
 - **Load target:** validated pre-launch at ~100 then ~150-200 concurrent
   clients with rapid voting/question bursts (never against a live event).
-
-> TODO: pin the exact SiteGround Node version, build command, and output
-> directory once confirmed against SiteGround's current documentation.
 
 ## Open questions
 
@@ -197,5 +200,3 @@ choices that would block adding orgs/workspaces/usage limits/Stripe later.
   purge) are known.
 - SiteGround-compatible PDF generation approach for branded report exports -
   decide when Report export is built.
-- Exact SiteGround Node.js/Nitro deployment settings - confirm before
-  Production Readiness / Deployment work.

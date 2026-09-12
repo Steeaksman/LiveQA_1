@@ -7,6 +7,9 @@ export default defineNuxtConfig({
       htmlAttrs: { lang: 'en' }
     }
   },
+  nitro: {
+    preset: 'node-server'
+  },
   modules: ['@nuxt/ui'],
   css: ['~/assets/css/main.css'],
   routeRules: {
