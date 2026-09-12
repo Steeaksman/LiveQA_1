@@ -146,7 +146,7 @@ cleaned-up checkbox version before generating the project overview.
 **Production readiness**
 
 - [x] 36. **Supabase free-tier usage guardrails** - admin-visible active-count, Realtime, DB, and storage usage signals with Normal/Approaching-Capacity/Consider-Upgrading warnings (never shown to attendees)
-- [ ] 37. **Event Readiness Check** - one-click pre-event diagnostic covering app/Supabase/DB/Realtime/storage reachability, QR and join-code resolution, moderator auth, and event/submission/voting configuration state
+- [x] 37. **Event Readiness Check** - one-click pre-event diagnostic covering app/Supabase/DB/Realtime/storage reachability, QR and join-code resolution, moderator auth, and event/submission/voting configuration state
 - [ ] 38. **Accessibility pass** - WCAG 2.2 AA across attendee, moderator, and admin surfaces
 - [ ] 39. **Security hardening review** - RLS, IDOR, XSS/CSRF, upload validation, rate limiting, and cross-event isolation checked end to end
 - [ ] 40. **Load testing** - simulate ~100 then ~150-200 concurrent clients with rapid voting/question bursts and document latency, errors, and Realtime behavior

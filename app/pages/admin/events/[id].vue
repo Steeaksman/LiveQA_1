@@ -15,7 +15,7 @@ const supabase = useSupabase()
 
 const loading = ref(true)
 const notFound = ref(false)
-const activeTab = ref<'dashboard' | 'questions' | 'reports' | 'backup' | 'details' | 'attendee-types' | 'settings' | 'qr-codes' | 'signage' | 'branding'>('details')
+const activeTab = ref<'dashboard' | 'questions' | 'reports' | 'backup' | 'readiness' | 'details' | 'attendee-types' | 'settings' | 'qr-codes' | 'signage' | 'branding'>('details')
 
 const profile = ref<AuthenticatedProfile | null>(null)
 const duplicating = ref(false)
@@ -483,6 +483,115 @@ async function downloadBackup() {
     backupError.value = data?.error ?? 'Something went wrong. Please try again.'
   } finally {
     downloadingBackup.value = false
+  }
+}
+
+type CheckStatus = 'ok' | 'warning' | 'fail'
+
+interface ReadinessData {
+  supabaseAuth: { status: CheckStatus }
+  database: { status: CheckStatus }
+  storage: { status: CheckStatus, buckets: { branding: CheckStatus, attachments: CheckStatus, reports: CheckStatus } }
+  qrAndJoinCode: { status: CheckStatus, eventLive: boolean, slugValid: boolean, joinCodeValid: boolean }
+  moderatorAuth: { status: CheckStatus, accessEnabled: boolean, passwordSet: boolean, lockedOut: boolean }
+  configuration: { status: string, submissionsOpen: boolean, votingOpen: boolean, moderatorAccessEnabled: boolean }
+}
+
+interface ReadinessResponse {
+  success: boolean
+  data: ReadinessData | null
+  error: string | null
+}
+
+const READINESS_STATUS_LABELS: Record<CheckStatus, string> = {
+  ok: 'OK',
+  warning: 'Warning',
+  fail: 'Fail'
+}
+
+const READINESS_STATUS_COLORS: Record<CheckStatus, 'success' | 'warning' | 'error'> = {
+  ok: 'success',
+  warning: 'warning',
+  fail: 'error'
+}
+
+const readinessData = ref<ReadinessData | null>(null)
+const realtimeStatus = ref<CheckStatus | null>(null)
+const readinessError = ref<string | null>(null)
+const runningReadinessCheck = ref(false)
+
+const overallReadinessStatus = computed<CheckStatus | null>(() => {
+  if (!readinessData.value || realtimeStatus.value === null) return null
+  const statuses: CheckStatus[] = [
+    readinessData.value.supabaseAuth.status,
+    readinessData.value.database.status,
+    readinessData.value.storage.status,
+    readinessData.value.qrAndJoinCode.status,
+    readinessData.value.moderatorAuth.status,
+    realtimeStatus.value
+  ]
+  if (statuses.includes('fail')) return 'fail'
+  if (statuses.includes('warning')) return 'warning'
+  return 'ok'
+})
+
+function probeRealtime(): Promise<CheckStatus> {
+  return new Promise((resolve) => {
+    let settled = false
+    const channel = supabase.channel(`readiness-check:${eventId}:${Date.now()}`)
+
+    const finish = (status: CheckStatus) => {
+      if (settled) return
+      settled = true
+      clearTimeout(timer)
+      supabase.removeChannel(channel)
+      resolve(status)
+    }
+
+    const timer = setTimeout(() => finish('fail'), 5000)
+
+    channel.subscribe((status) => {
+      if (status === 'SUBSCRIBED') {
+        finish('ok')
+      } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+        finish('fail')
+      }
+    })
+  })
+}
+
+async function runReadinessCheck() {
+  readinessError.value = null
+  readinessData.value = null
+  realtimeStatus.value = null
+  runningReadinessCheck.value = true
+
+  try {
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session) {
+      readinessError.value = 'Your session expired. Please log in again.'
+      return
+    }
+
+    const [response, realtimeResult] = await Promise.all([
+      $fetch<ReadinessResponse>(`/api/admin/events/${eventId}/readiness`, {
+        headers: { Authorization: `Bearer ${session.access_token}` }
+      }),
+      probeRealtime()
+    ])
+
+    if (!response.success || !response.data) {
+      readinessError.value = response.error ?? 'Something went wrong. Please try again.'
+      return
+    }
+
+    readinessData.value = response.data
+    realtimeStatus.value = realtimeResult
+  } catch (err) {
+    const data = (err as { data?: ReadinessResponse })?.data
+    readinessError.value = data?.error ?? 'Something went wrong. Please try again.'
+  } finally {
+    runningReadinessCheck.value = false
   }
 }
 
@@ -1037,6 +1146,11 @@ async function removeBrandingLogo(slot: 'logo' | 'sponsor_logo') {
           @click="activeTab = 'backup'"
         />
         <UButton
+          :variant="activeTab === 'readiness' ? 'solid' : 'ghost'"
+          label="Readiness"
+          @click="activeTab = 'readiness'"
+        />
+        <UButton
           :variant="activeTab === 'details' ? 'solid' : 'ghost'"
           label="Details"
           @click="activeTab = 'details'"
@@ -1229,6 +1343,94 @@ async function removeBrandingLogo(slot: 'logo' | 'sponsor_logo') {
           </p>
           <UAlert v-if="backupError" color="error" variant="subtle" :title="backupError" />
           <UButton :loading="downloadingBackup" label="Download backup" class="self-start" @click="downloadBackup" />
+        </div>
+      </UCard>
+
+      <UCard v-else-if="activeTab === 'readiness'">
+        <div class="flex flex-col gap-3">
+          <p class="text-sm text-gray-500">
+            Runs a live check of app subsystems, QR/join-code resolution, moderator login, and current submission/voting configuration for this event.
+          </p>
+          <UAlert v-if="readinessError" color="error" variant="subtle" :title="readinessError" />
+          <UButton :loading="runningReadinessCheck" label="Run readiness check" class="self-start" @click="runReadinessCheck" />
+
+          <template v-if="readinessData && realtimeStatus && overallReadinessStatus">
+            <UAlert
+              :color="READINESS_STATUS_COLORS[overallReadinessStatus]"
+              variant="subtle"
+              :title="`Overall: ${READINESS_STATUS_LABELS[overallReadinessStatus]}`"
+            />
+
+            <div class="flex items-center justify-between border-t pt-3">
+              <span>Supabase Auth</span>
+              <UBadge :color="READINESS_STATUS_COLORS[readinessData.supabaseAuth.status]">
+                {{ READINESS_STATUS_LABELS[readinessData.supabaseAuth.status] }}
+              </UBadge>
+            </div>
+            <div class="flex items-center justify-between">
+              <span>Database</span>
+              <UBadge :color="READINESS_STATUS_COLORS[readinessData.database.status]">
+                {{ READINESS_STATUS_LABELS[readinessData.database.status] }}
+              </UBadge>
+            </div>
+            <div class="flex items-center justify-between">
+              <span>Realtime</span>
+              <UBadge :color="READINESS_STATUS_COLORS[realtimeStatus]">
+                {{ READINESS_STATUS_LABELS[realtimeStatus] }}
+              </UBadge>
+            </div>
+            <div class="flex items-center justify-between">
+              <span>Storage</span>
+              <UBadge :color="READINESS_STATUS_COLORS[readinessData.storage.status]">
+                {{ READINESS_STATUS_LABELS[readinessData.storage.status] }}
+              </UBadge>
+            </div>
+            <div class="ml-4 flex flex-col gap-1 text-sm text-gray-500">
+              <div class="flex items-center justify-between">
+                <span>Branding bucket</span>
+                <span>{{ READINESS_STATUS_LABELS[readinessData.storage.buckets.branding] }}</span>
+              </div>
+              <div class="flex items-center justify-between">
+                <span>Attachments bucket</span>
+                <span>{{ READINESS_STATUS_LABELS[readinessData.storage.buckets.attachments] }}</span>
+              </div>
+              <div class="flex items-center justify-between">
+                <span>Reports bucket</span>
+                <span>{{ READINESS_STATUS_LABELS[readinessData.storage.buckets.reports] }}</span>
+              </div>
+            </div>
+            <div class="flex items-center justify-between border-t pt-3">
+              <span>QR codes & join code</span>
+              <UBadge :color="READINESS_STATUS_COLORS[readinessData.qrAndJoinCode.status]">
+                {{ READINESS_STATUS_LABELS[readinessData.qrAndJoinCode.status] }}
+              </UBadge>
+            </div>
+            <p v-if="!readinessData.qrAndJoinCode.eventLive" class="text-sm text-gray-500">
+              Event is not live - the audience URL, QR codes, and join code will not resolve for attendees until it is.
+            </p>
+            <div class="flex items-center justify-between border-t pt-3">
+              <span>Moderator login</span>
+              <UBadge :color="READINESS_STATUS_COLORS[readinessData.moderatorAuth.status]">
+                {{ READINESS_STATUS_LABELS[readinessData.moderatorAuth.status] }}
+              </UBadge>
+            </div>
+            <p v-if="!readinessData.moderatorAuth.accessEnabled" class="text-sm text-gray-500">
+              Moderator access is turned off for this event.
+            </p>
+            <p v-else-if="!readinessData.moderatorAuth.passwordSet" class="text-sm text-gray-500">
+              Moderator access is on, but no moderator password is set - no one can log in.
+            </p>
+            <p v-else-if="readinessData.moderatorAuth.lockedOut" class="text-sm text-gray-500">
+              Moderator login is temporarily locked from recent failed attempts.
+            </p>
+
+            <div class="flex flex-col gap-1 border-t pt-3 text-sm text-gray-500">
+              <p>Status: {{ readinessData.configuration.status }}</p>
+              <p>Submissions open: {{ readinessData.configuration.submissionsOpen ? 'Yes' : 'No' }}</p>
+              <p>Voting open: {{ readinessData.configuration.votingOpen ? 'Yes' : 'No' }}</p>
+              <p>Moderator access enabled: {{ readinessData.configuration.moderatorAccessEnabled ? 'Yes' : 'No' }}</p>
+            </div>
+          </template>
         </div>
       </UCard>
 
