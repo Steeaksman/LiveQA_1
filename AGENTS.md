@@ -235,6 +235,10 @@ For a Nuxt 4 + Vue 3 + TypeScript project, using npm.
 - Create an Administrator: `node --env-file=.env scripts/create-admin.mjs
   --email <email> --password <password>` (operator-run only, never exposed
   in the app)
+- Load test: `node --env-file=.env scripts/load-test.mjs --url <app-base-url>
+  --slug <test-event-slug> --clients <count> --duration <seconds>` (simulates
+  concurrent attendees against a dedicated, non-production test event;
+  `--clients` defaults to 100, `--duration` to 60 seconds)
 
 Copy `.env.example` to `.env` and fill in `NUXT_PUBLIC_SUPABASE_URL`,
 `NUXT_PUBLIC_SUPABASE_ANON_KEY`, and `NUXT_SUPABASE_SERVICE_ROLE_KEY` from the
