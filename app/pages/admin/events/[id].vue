@@ -15,7 +15,7 @@ const supabase = useSupabase()
 
 const loading = ref(true)
 const notFound = ref(false)
-const activeTab = ref<'dashboard' | 'questions' | 'details' | 'attendee-types' | 'settings' | 'qr-codes' | 'signage' | 'branding'>('details')
+const activeTab = ref<'dashboard' | 'questions' | 'reports' | 'details' | 'attendee-types' | 'settings' | 'qr-codes' | 'signage' | 'branding'>('details')
 
 const profile = ref<AuthenticatedProfile | null>(null)
 const duplicating = ref(false)
@@ -188,6 +188,10 @@ watch(activeTab, (value) => {
   if (value === 'questions') {
     fetchQuestions()
   }
+
+  if (value === 'reports') {
+    fetchReports()
+  }
 })
 
 onUnmounted(stopDashboardLiveUpdates)
@@ -348,6 +352,96 @@ async function saveQuestionEdit(questionId: string) {
 
 function toggleRevisions(questionId: string) {
   expandedRevisionsId.value = expandedRevisionsId.value === questionId ? null : questionId
+}
+
+interface ReportRow {
+  id: string
+  reportType: 'combined' | 'topic_by_topic'
+  format: 'csv' | 'html'
+  generatedByEmail: string | null
+  createdAt: string
+  url: string | null
+}
+
+interface ReportsResponse {
+  success: boolean
+  data: { reports: ReportRow[] } | null
+  error: string | null
+}
+
+interface GenerateReportResponse {
+  success: boolean
+  data: { reportId: string, url: string | null } | null
+  error: string | null
+}
+
+const reportTypeOptions = [
+  { label: 'Combined', value: 'combined' },
+  { label: 'Topic by topic', value: 'topic_by_topic' }
+]
+const reportFormatOptions = [
+  { label: 'CSV', value: 'csv' },
+  { label: 'Printable HTML', value: 'html' }
+]
+
+const selectedReportType = ref<'combined' | 'topic_by_topic'>('combined')
+const selectedReportFormat = ref<'csv' | 'html'>('csv')
+const reports = ref<ReportRow[]>([])
+const reportsError = ref<string | null>(null)
+const generatingReport = ref(false)
+
+async function fetchReports() {
+  const { data: { session } } = await supabase.auth.getSession()
+  if (!session) return
+
+  try {
+    const response = await $fetch<ReportsResponse>(`/api/admin/events/${eventId}/reports`, {
+      headers: { Authorization: `Bearer ${session.access_token}` }
+    })
+
+    if (response.success && response.data) {
+      reports.value = response.data.reports
+    } else {
+      reportsError.value = response.error ?? 'Something went wrong. Please try again.'
+    }
+  } catch {
+    reportsError.value = 'Something went wrong. Please try again.'
+  }
+}
+
+async function generateReport() {
+  reportsError.value = null
+  generatingReport.value = true
+
+  try {
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session) {
+      reportsError.value = 'Your session expired. Please log in again.'
+      return
+    }
+
+    const response = await $fetch<GenerateReportResponse>(`/api/admin/events/${eventId}/reports`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${session.access_token}` },
+      body: { reportType: selectedReportType.value, format: selectedReportFormat.value }
+    })
+
+    if (!response.success) {
+      reportsError.value = response.error ?? 'Something went wrong. Please try again.'
+      return
+    }
+
+    if (response.data?.url) {
+      window.open(response.data.url, '_blank')
+    }
+
+    await fetchReports()
+  } catch (err) {
+    const data = (err as { data?: GenerateReportResponse })?.data
+    reportsError.value = data?.error ?? 'Something went wrong. Please try again.'
+  } finally {
+    generatingReport.value = false
+  }
 }
 
 onMounted(async () => {
@@ -891,6 +985,11 @@ async function removeBrandingLogo(slot: 'logo' | 'sponsor_logo') {
           @click="activeTab = 'questions'"
         />
         <UButton
+          :variant="activeTab === 'reports' ? 'solid' : 'ghost'"
+          label="Reports"
+          @click="activeTab = 'reports'"
+        />
+        <UButton
           :variant="activeTab === 'details' ? 'solid' : 'ghost'"
           label="Details"
           @click="activeTab = 'details'"
@@ -1044,6 +1143,35 @@ async function removeBrandingLogo(slot: 'logo' | 'sponsor_logo') {
         </UCard>
         <p v-if="deletedQuestions.length === 0" class="text-sm text-gray-500">
           No deleted questions.
+        </p>
+      </div>
+
+      <div v-else-if="activeTab === 'reports'" class="flex flex-col gap-3">
+        <UCard>
+          <div class="flex flex-col gap-3">
+            <UFormField label="Report type">
+              <USelect v-model="selectedReportType" :items="reportTypeOptions" value-key="value" />
+            </UFormField>
+            <UFormField label="Format">
+              <USelect v-model="selectedReportFormat" :items="reportFormatOptions" value-key="value" />
+            </UFormField>
+            <UAlert v-if="reportsError" color="error" variant="subtle" :title="reportsError" />
+            <UButton :loading="generatingReport" label="Generate" class="self-start" @click="generateReport" />
+          </div>
+        </UCard>
+
+        <h2 class="font-medium">
+          Past reports
+        </h2>
+        <UCard v-for="report in reports" :key="report.id">
+          <p class="text-sm text-gray-500">
+            {{ report.reportType }} - {{ report.format }} - {{ report.generatedByEmail ?? 'Unknown' }} -
+            {{ new Date(report.createdAt).toLocaleString() }}
+          </p>
+          <a v-if="report.url" :href="report.url" target="_blank" rel="noopener noreferrer" class="underline">Download</a>
+        </UCard>
+        <p v-if="reports.length === 0" class="text-sm text-gray-500">
+          No reports generated yet.
         </p>
       </div>
 
