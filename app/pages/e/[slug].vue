@@ -183,6 +183,7 @@ const displayName = ref('')
 const attendeeTypeId = ref<string | null>(null)
 const joining = ref(false)
 const joinError = ref<string | null>(null)
+const joinErrorField = ref<'name' | 'attendeeType' | null>(null)
 
 const connectionStatus = ref<'connected' | 'reconnecting'>('reconnecting')
 
@@ -251,14 +252,17 @@ onMounted(() => {
 async function join() {
   if (!context.value) return
   joinError.value = null
+  joinErrorField.value = null
 
   if (context.value.requireAttendeeName && !displayName.value.trim()) {
     joinError.value = 'Please enter your name.'
+    joinErrorField.value = 'name'
     return
   }
 
   if (context.value.requireAttendeeType && context.value.attendeeTypes.length > 0 && !attendeeTypeId.value) {
     joinError.value = 'Please choose your attendee type.'
+    joinErrorField.value = 'attendeeType'
     return
   }
 
@@ -296,6 +300,7 @@ const questionText = ref('')
 const askAnonymously = ref(false)
 const submitting = ref(false)
 const submitError = ref<string | null>(null)
+const submitErrorField = ref<'text' | null>(null)
 const submitConfirmation = ref<string | null>(null)
 
 const similarQuestions = ref<SimilarQuestion[]>([])
@@ -320,10 +325,12 @@ watch(questionText, (text) => {
 async function submitQuestion() {
   if (!context.value) return
   submitError.value = null
+  submitErrorField.value = null
   submitConfirmation.value = null
 
   if (!questionText.value.trim()) {
     submitError.value = 'Please enter a question.'
+    submitErrorField.value = 'text'
     return
   }
 
@@ -515,6 +522,7 @@ const editingQuestionId = ref<string | null>(null)
 const editText = ref('')
 const savingEdit = ref(false)
 const editError = ref<string | null>(null)
+const editErrorField = ref<'text' | null>(null)
 const deletingQuestionId = ref<string | null>(null)
 const deleteError = ref<string | null>(null)
 
@@ -522,19 +530,23 @@ function startEdit(question: MyQuestionRow) {
   editingQuestionId.value = question.id
   editText.value = question.text
   editError.value = null
+  editErrorField.value = null
 }
 
 function cancelEdit() {
   editingQuestionId.value = null
   editError.value = null
+  editErrorField.value = null
 }
 
 async function saveEdit(questionId: string) {
   if (!context.value) return
   editError.value = null
+  editErrorField.value = null
 
   if (!editText.value.trim()) {
     editError.value = 'Please enter a question.'
+    editErrorField.value = 'text'
     return
   }
 
@@ -665,7 +677,10 @@ async function uploadAttachment(questionId: string) {
             Submissions are currently closed.
           </p>
           <template v-else>
-            <UFormField :label="`Ask a question (max ${context.questionMaxLength} characters)`">
+            <UFormField
+              :label="`Ask a question (max ${context.questionMaxLength} characters)`"
+              :error="submitErrorField === 'text' ? submitError ?? undefined : undefined"
+            >
               <UTextarea v-model="questionText" :maxlength="context.questionMaxLength" />
             </UFormField>
             <div v-if="context.anonymityMode === 'optional'" class="flex items-center justify-between">
@@ -680,7 +695,7 @@ async function uploadAttachment(questionId: string) {
                 "{{ similar.text }}"
               </p>
             </div>
-            <UAlert v-if="submitError" color="error" variant="subtle" :title="submitError" />
+            <UAlert v-if="submitError && !submitErrorField" color="error" variant="subtle" :title="submitError" />
             <UAlert v-if="submitConfirmation" color="success" variant="subtle" :title="submitConfirmation" />
             <UButton :loading="submitting" label="Submit" class="self-start" @click="submitQuestion" />
           </template>
@@ -692,13 +707,18 @@ async function uploadAttachment(questionId: string) {
           <p v-if="context.welcomeText">
             {{ context.welcomeText }}
           </p>
-          <UFormField label="Your name" :required="context.requireAttendeeName">
+          <UFormField
+            label="Your name"
+            :required="context.requireAttendeeName"
+            :error="joinErrorField === 'name' ? joinError ?? undefined : undefined"
+          >
             <UInput v-model="displayName" />
           </UFormField>
           <UFormField
             v-if="context.attendeeTypes.length > 0"
             label="Attendee type"
             :required="context.requireAttendeeType"
+            :error="joinErrorField === 'attendeeType' ? joinError ?? undefined : undefined"
           >
             <USelect
               v-model="attendeeTypeId"
@@ -706,7 +726,7 @@ async function uploadAttachment(questionId: string) {
               value-key="value"
             />
           </UFormField>
-          <UAlert v-if="joinError" color="error" variant="subtle" :title="joinError" />
+          <UAlert v-if="joinError && !joinErrorField" color="error" variant="subtle" :title="joinError" />
           <UButton :loading="joining" label="Join" class="self-start" @click="join" />
         </div>
       </UCard>
@@ -715,13 +735,15 @@ async function uploadAttachment(questionId: string) {
         <h2 class="mb-3 font-medium">
           My Questions
         </h2>
-        <UAlert v-if="editError" color="error" variant="subtle" :title="editError" class="mb-3" />
+        <UAlert v-if="editError && !editErrorField" color="error" variant="subtle" :title="editError" class="mb-3" />
         <UAlert v-if="deleteError" color="error" variant="subtle" :title="deleteError" class="mb-3" />
         <UAlert v-if="uploadError" color="error" variant="subtle" :title="uploadError" class="mb-3" />
         <div class="flex flex-col gap-2">
           <UCard v-for="question in myQuestions" :key="question.id">
             <div v-if="editingQuestionId === question.id" class="flex flex-col gap-2">
-              <UTextarea v-model="editText" :maxlength="context.questionMaxLength" />
+              <UFormField label="Edit your question" :error="editErrorField === 'text' ? editError ?? undefined : undefined">
+                <UTextarea v-model="editText" :maxlength="context.questionMaxLength" />
+              </UFormField>
               <div class="flex gap-2">
                 <UButton size="xs" :loading="savingEdit" label="Save" @click="saveEdit(question.id)" />
                 <UButton size="xs" variant="ghost" label="Cancel" @click="cancelEdit" />
@@ -760,7 +782,12 @@ async function uploadAttachment(questionId: string) {
               v-if="context.attachmentMaxCount > 0 && context.submissionsOpen && question.attachments.length < context.attachmentMaxCount"
               class="mt-2 flex items-center gap-2"
             >
-              <input type="file" accept="image/jpeg,image/png,image/gif,image/webp,application/pdf" @change="onFileSelected(question.id, $event)">
+              <input
+                type="file"
+                :aria-label="`Upload an attachment for: ${question.text}`"
+                accept="image/jpeg,image/png,image/gif,image/webp,application/pdf"
+                @change="onFileSelected(question.id, $event)"
+              >
               <UButton
                 size="xs"
                 label="Upload"
@@ -785,10 +812,10 @@ async function uploadAttachment(questionId: string) {
           <UButton size="xs" variant="subtle" label="Refresh" @click="refreshQuestions" />
         </div>
       </div>
-      <p class="mb-3 text-sm text-gray-500">
+      <p class="mb-3 text-sm text-gray-500" role="status">
         {{ connectionStatus === 'connected' ? 'Live' : 'Reconnecting...' }}
       </p>
-      <UInput v-model="searchInput" placeholder="Search questions" class="mb-3 w-full" />
+      <UInput v-model="searchInput" aria-label="Search questions" placeholder="Search questions" class="mb-3 w-full" />
       <p v-if="!context.votingOpen" class="mb-3 text-sm text-gray-500">
         Voting is currently closed.
       </p>
@@ -807,7 +834,11 @@ async function uploadAttachment(questionId: string) {
               </p>
             </div>
             <div class="flex shrink-0 items-center gap-2">
-              <span v-if="question.voteCount !== null" class="text-sm text-gray-500">{{ question.voteCount }}</span>
+              <span
+                v-if="question.voteCount !== null"
+                class="text-sm text-gray-500"
+                :aria-label="`${question.voteCount} ${question.voteCount === 1 ? 'vote' : 'votes'}`"
+              >{{ question.voteCount }}</span>
               <UButton
                 v-if="joined && context.votingOpen"
                 size="xs"
@@ -856,7 +887,14 @@ async function uploadAttachment(questionId: string) {
           </div>
 
           <div v-if="joined" class="mt-2 flex gap-2">
-            <UInput v-model="replyText[question.id]" placeholder="Write a reply" size="sm" class="flex-1" @keyup.enter="submitReply(question.id)" />
+            <UInput
+              v-model="replyText[question.id]"
+              :aria-label="`Reply to: ${question.text}`"
+              placeholder="Write a reply"
+              size="sm"
+              class="flex-1"
+              @keyup.enter="submitReply(question.id)"
+            />
             <UButton
               size="sm"
               label="Reply"

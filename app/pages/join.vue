@@ -46,10 +46,9 @@ async function join() {
       Join an event
     </h1>
     <UForm :state="{}" class="flex flex-col gap-3" @submit="join">
-      <UFormField label="Join code" required>
+      <UFormField label="Join code" required :error="joinError ?? undefined">
         <UInput v-model="code" placeholder="e.g. AB12CD" @keyup.enter="join" />
       </UFormField>
-      <UAlert v-if="joinError" color="error" variant="subtle" :title="joinError" />
       <UButton type="submit" :loading="joining" label="Join" class="self-start" />
     </UForm>
   </div>
