@@ -732,30 +732,32 @@ async function login() {
       <p>Event not found.</p>
     </div>
 
-    <div v-else-if="checkingSession" />
+    <p v-else-if="checkingSession" role="status">
+      Loading...
+    </p>
 
     <div v-else-if="authenticated" class="mx-auto max-w-2xl">
       <h1 class="mb-4 text-xl font-semibold">
         {{ context?.name }}
       </h1>
 
-      <p class="mb-1 text-sm text-gray-500">
+      <p class="mb-1 text-sm text-gray-500" role="status">
         {{ connectionStatus === 'connected' ? 'Live' : 'Reconnecting...' }} -
         {{ attendeeCount }} active attendees - {{ moderatorCount }} active moderators
       </p>
 
-      <p class="mb-4 font-semibold">
+      <p class="mb-4 font-semibold" role="status">
         {{ pendingCount === 0 ? 'No pending questions' : `${pendingCount} pending` }}
       </p>
 
       <div class="mb-4 flex flex-col gap-2">
         <div class="flex items-center justify-between">
           <span>Sound alert for new questions</span>
-          <USwitch :model-value="notifySound" @update:model-value="toggleSound" />
+          <USwitch aria-label="Sound alert for new questions" :model-value="notifySound" @update:model-value="toggleSound" />
         </div>
         <div class="flex items-center justify-between">
           <span>Browser notification for new questions</span>
-          <USwitch :model-value="notifyBrowser" :disabled="!notificationSupported" @update:model-value="toggleBrowserNotify" />
+          <USwitch aria-label="Browser notification for new questions" :model-value="notifyBrowser" :disabled="!notificationSupported" @update:model-value="toggleBrowserNotify" />
         </div>
         <p v-if="!notificationSupported" class="text-sm text-gray-500">
           Not supported in this browser.
@@ -766,11 +768,11 @@ async function login() {
       <div class="mb-4 flex flex-col gap-2">
         <div class="flex items-center justify-between">
           <span>Submissions open</span>
-          <USwitch :model-value="submissionsOpen" @update:model-value="(value) => updateControl('submissionsOpen', value)" />
+          <USwitch aria-label="Submissions open" :model-value="submissionsOpen" @update:model-value="(value) => updateControl('submissionsOpen', value)" />
         </div>
         <div class="flex items-center justify-between">
           <span>Voting open</span>
-          <USwitch :model-value="votingOpen" @update:model-value="(value) => updateControl('votingOpen', value)" />
+          <USwitch aria-label="Voting open" :model-value="votingOpen" @update:model-value="(value) => updateControl('votingOpen', value)" />
         </div>
         <UAlert v-if="controlsError" color="error" variant="subtle" :title="controlsError" />
       </div>
@@ -782,7 +784,7 @@ async function login() {
         <div class="flex flex-col gap-2">
           <div v-for="(t, i) in topics" :key="t.id" class="flex items-center gap-2">
             <template v-if="renamingTopicId === t.id">
-              <UInput v-model="renameTopicName" size="sm" @keyup.enter="submitRename(t.id)" />
+              <UInput v-model="renameTopicName" :aria-label="`Rename ${t.name}`" size="sm" @keyup.enter="submitRename(t.id)" />
               <UButton size="sm" label="Save" :loading="topicActionLoading === t.id" @click="submitRename(t.id)" />
               <UButton size="sm" variant="ghost" label="Cancel" @click="renamingTopicId = null" />
             </template>
@@ -793,13 +795,14 @@ async function login() {
                 v-else
                 size="sm"
                 label="Set current"
+                :aria-label="`Set current: ${t.name}`"
                 :loading="topicActionLoading === t.id"
                 @click="performTopicAction(t.id, 'set_current')"
               />
-              <UButton size="sm" variant="ghost" label="Up" :disabled="i === 0" @click="performTopicAction(t.id, 'move_up')" />
-              <UButton size="sm" variant="ghost" label="Down" :disabled="i === topics.length - 1" @click="performTopicAction(t.id, 'move_down')" />
-              <UButton size="sm" variant="ghost" label="Rename" @click="startRename(t)" />
-              <UButton size="sm" variant="ghost" color="error" label="Delete" @click="performTopicAction(t.id, 'delete')" />
+              <UButton size="sm" variant="ghost" label="Up" :aria-label="`Move up: ${t.name}`" :disabled="i === 0" @click="performTopicAction(t.id, 'move_up')" />
+              <UButton size="sm" variant="ghost" label="Down" :aria-label="`Move down: ${t.name}`" :disabled="i === topics.length - 1" @click="performTopicAction(t.id, 'move_down')" />
+              <UButton size="sm" variant="ghost" label="Rename" :aria-label="`Rename: ${t.name}`" @click="startRename(t)" />
+              <UButton size="sm" variant="ghost" color="error" label="Delete" :aria-label="`Delete: ${t.name}`" @click="performTopicAction(t.id, 'delete')" />
             </template>
           </div>
           <p v-if="topics.length === 0" class="text-sm text-gray-500">
@@ -807,7 +810,7 @@ async function login() {
           </p>
           <UAlert v-if="topicsError" color="error" variant="subtle" :title="topicsError" />
           <div class="flex gap-2">
-            <UInput v-model="newTopicName" placeholder="New topic name" size="sm" @keyup.enter="addTopic" />
+            <UInput v-model="newTopicName" aria-label="New topic name" placeholder="New topic name" size="sm" @keyup.enter="addTopic" />
             <UButton size="sm" label="Add topic" :loading="addingTopic" @click="addTopic" />
           </div>
         </div>
@@ -830,7 +833,7 @@ async function login() {
       </p>
 
       <div v-if="questions.length > 0" class="mb-2 flex items-center gap-2">
-        <UCheckbox :model-value="allSelected" @update:model-value="toggleSelectAll" />
+        <UCheckbox aria-label="Select all" :model-value="allSelected" @update:model-value="toggleSelectAll" />
         <span class="text-sm text-gray-500">Select all</span>
       </div>
 
@@ -852,7 +855,7 @@ async function login() {
       <div class="flex flex-col gap-3">
         <UCard v-for="q in questions" :key="q.id">
           <div class="flex items-start gap-2">
-            <UCheckbox :model-value="selectedIds.has(q.id)" @update:model-value="(checked) => toggleSelected(q.id, !!checked)" />
+            <UCheckbox :aria-label="`Select: ${q.text}`" :model-value="selectedIds.has(q.id)" @update:model-value="(checked) => toggleSelected(q.id, !!checked)" />
             <p class="whitespace-pre-wrap">
               {{ q.text }}
             </p>
@@ -924,7 +927,14 @@ async function login() {
 
           <UAlert v-if="moderatorReplyError" color="error" variant="subtle" :title="moderatorReplyError" class="mt-2" />
           <div class="mt-2 flex gap-2">
-            <UInput v-model="moderatorReplyText[q.id]" placeholder="Reply as moderator" size="sm" class="flex-1" @keyup.enter="postModeratorReply(q.id)" />
+            <UInput
+              v-model="moderatorReplyText[q.id]"
+              :aria-label="`Reply as moderator to: ${q.text}`"
+              placeholder="Reply as moderator"
+              size="sm"
+              class="flex-1"
+              @keyup.enter="postModeratorReply(q.id)"
+            />
             <UButton
               size="sm"
               label="Reply"
@@ -941,10 +951,9 @@ async function login() {
         {{ context?.name }}
       </h1>
       <UForm :state="{}" class="flex flex-col gap-3" @submit="login">
-        <UFormField label="Moderator password" required>
+        <UFormField label="Moderator password" required :error="loginError ?? undefined">
           <UInput v-model="password" type="password" @keyup.enter="login" />
         </UFormField>
-        <UAlert v-if="loginError" color="error" variant="subtle" :title="loginError" />
         <UButton type="submit" :loading="loggingIn" label="Enter" class="self-start" />
       </UForm>
     </div>

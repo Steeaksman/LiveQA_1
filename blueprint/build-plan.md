@@ -149,7 +149,7 @@ cleaned-up checkbox version before generating the project overview.
 - [x] 37. **Event Readiness Check** - one-click pre-event diagnostic covering app/Supabase/DB/Realtime/storage reachability, QR and join-code resolution, moderator auth, and event/submission/voting configuration state
 - [ ] 38. **Accessibility pass** - WCAG 2.2 AA across attendee, moderator, and admin surfaces. Split into sub-items because the three surfaces are wildly different in size and review scope (attendee: `join.vue` + `e/[slug].vue`, ~930 lines combined; moderator: `m/[slug].vue`, 952 lines; admin: 13 pages including the 1623-line `admin/events/[id].vue`) - one branch covering all three would be far too large to review together, and the build-plan line's own wording already names the three-way boundary.
   - [x] 38a. **Attendee surface accessibility** - WCAG 2.2 AA remediation across `join.vue` and `e/[slug].vue` (the attendee join flow and public Q&A feed)
-  - [ ] 38b. **Moderator surface accessibility** - WCAG 2.2 AA remediation across `m/[slug].vue` (moderator login and queue)
+  - [x] 38b. **Moderator surface accessibility** - WCAG 2.2 AA remediation across `m/[slug].vue` (moderator login and queue)
   - [ ] 38c. **Admin surface accessibility** - WCAG 2.2 AA remediation across every `/admin/*` page
 - [ ] 39. **Security hardening review** - RLS, IDOR, XSS/CSRF, upload validation, rate limiting, and cross-event isolation checked end to end
 - [ ] 40. **Load testing** - simulate ~100 then ~150-200 concurrent clients with rapid voting/question bursts and document latency, errors, and Realtime behavior
