@@ -47,6 +47,9 @@ async function logout() {
       <NuxtLink to="/admin/audit-log">
         Audit Log
       </NuxtLink>
+      <NuxtLink to="/admin/usage">
+        Usage & Guardrails
+      </NuxtLink>
     </template>
     <UButton label="Log out" @click="logout" />
   </div>
