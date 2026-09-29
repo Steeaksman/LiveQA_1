@@ -10,6 +10,16 @@ const roleLabel = computed(() => {
   return profile.value.emScope === 'global' ? 'Event Manager (Global)' : 'Event Manager (Restricted)'
 })
 
+const navItems = useAdminNav(profile)
+const sidebarItems = computed(() => [
+  { label: 'Home', icon: 'i-lucide-house', to: '/admin' },
+  ...navItems.value
+])
+
+const userMenuItems = computed(() => [[
+  { label: 'Log out', icon: 'i-lucide-log-out', onSelect: logout }
+]])
+
 onMounted(async () => {
   profile.value = await getAuthenticatedProfile(supabase)
 })
@@ -21,48 +31,30 @@ async function logout() {
 </script>
 
 <template>
-  <div class="min-h-screen">
-    <header class="flex flex-wrap items-center gap-4 border-b border-gray-200 p-4 dark:border-gray-800">
-      <NuxtLink to="/admin" class="font-semibold">
-        LiveQA Admin
-      </NuxtLink>
-      <nav class="flex flex-wrap gap-4 text-sm">
-        <NuxtLink to="/admin/events">
-          Events
+  <UDashboardGroup>
+    <UDashboardSidebar>
+      <template #header>
+        <NuxtLink to="/admin" class="font-semibold">
+          LiveQA Admin
         </NuxtLink>
-        <template v-if="profile?.role === 'administrator'">
-          <NuxtLink to="/admin/events/new">
-            Create Event
-          </NuxtLink>
-          <NuxtLink to="/admin/events/restore">
-            Restore from Backup
-          </NuxtLink>
-          <NuxtLink to="/admin/event-managers">
-            Event Managers
-          </NuxtLink>
-          <NuxtLink to="/admin/templates">
-            Templates
-          </NuxtLink>
-          <NuxtLink to="/admin/blocked-terms">
-            Blocked Terms
-          </NuxtLink>
-          <NuxtLink to="/admin/audit-log">
-            Audit Log
-          </NuxtLink>
-          <NuxtLink to="/admin/usage">
-            Usage & Guardrails
-          </NuxtLink>
-        </template>
-      </nav>
-      <div class="ml-auto flex items-center gap-3">
-        <span v-if="profile" class="text-sm text-gray-500 dark:text-gray-400">
-          {{ profile.email }} ({{ roleLabel }})
-        </span>
-        <UButton label="Log out" @click="logout" />
-      </div>
-    </header>
-    <main>
-      <slot />
-    </main>
-  </div>
+      </template>
+      <UNavigationMenu :items="sidebarItems" orientation="vertical" />
+    </UDashboardSidebar>
+    <UDashboardPanel>
+      <template #header>
+        <UDashboardNavbar title="Admin">
+          <template #right>
+            <UDropdownMenu :items="userMenuItems">
+              <UButton color="neutral" variant="ghost">
+                <UUser :name="profile?.email ?? ''" :description="roleLabel" size="sm" />
+              </UButton>
+            </UDropdownMenu>
+          </template>
+        </UDashboardNavbar>
+      </template>
+      <template #body>
+        <slot />
+      </template>
+    </UDashboardPanel>
+  </UDashboardGroup>
 </template>

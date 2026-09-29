@@ -171,6 +171,10 @@ cleaned-up checkbox version before generating the project overview.
 
 - [x] 46. **Admin password reset** - self-service "Forgot password" flow (request a reset email, then set a new password via the emailed link) for existing Administrator and Event Manager accounts; no public sign-up and no OAuth login
 
+**Admin UI**
+
+- [x] 47. **Admin dashboard sidebar layout** - replace the flat top-nav admin layout with a Nuxt UI Dashboard-style sidebar + navbar shell (role-scoped nav links on the left, a user-menu dropdown with email/role and Log out on the right), applied to every `/admin/*` page; no new dashboard-home content or metrics
+
 ## Post-MVP (documented, not built now)
 
 Architecture should not preclude these, but none are scheduled features yet:
