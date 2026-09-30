@@ -1279,7 +1279,7 @@ async function removeBrandingLogo(slot: 'logo' | 'sponsor_logo') {
 </script>
 
 <template>
-  <div class="mx-auto max-w-lg p-6">
+  <div class="mx-auto max-w-6xl p-6">
     <div v-if="loading">
       Loading...
     </div>
@@ -1302,7 +1302,7 @@ async function removeBrandingLogo(slot: 'logo' | 'sponsor_logo') {
       </div>
       <UAlert v-if="duplicateError" color="error" variant="subtle" :title="duplicateError" class="mb-4" />
 
-      <div class="mb-4 flex gap-2">
+      <div class="mb-6 flex flex-wrap gap-2">
         <UButton
           :variant="activeTab === 'dashboard' ? 'solid' : 'ghost'"
           :aria-current="activeTab === 'dashboard' ? 'true' : undefined"
@@ -1371,7 +1371,8 @@ async function removeBrandingLogo(slot: 'logo' | 'sponsor_logo') {
         />
       </div>
 
-      <UCard v-if="activeTab === 'dashboard'">
+      <div class="mx-auto w-full max-w-lg">
+        <UCard v-if="activeTab === 'dashboard'">
         <div class="flex flex-col gap-3">
           <UAlert v-if="dashboardError" color="error" variant="subtle" :title="dashboardError" />
           <div class="flex gap-4">
@@ -1954,6 +1955,7 @@ async function removeBrandingLogo(slot: 'logo' | 'sponsor_logo') {
           </div>
         </div>
       </UCard>
+      </div>
     </div>
   </div>
 </template>
